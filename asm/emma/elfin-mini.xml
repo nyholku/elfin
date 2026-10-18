@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<!DOCTYPE emmaconfig SYSTEM "emma02.dtd">
+
+<!-- Emma 02 machine definition for ElFin on an 1802/Mini.
+
+     Emma has no 1802/Mini of its own, so this is the generic Elf given the
+     Mini's shape, as far as ElFin can see it:
+
+       - RAM from 0000 to EFFF and a ROM from F000, where the Mini's BIOS is.
+         The ROM here is only a stand-in, 4K of FF, but it is a ROM: anything
+         of ElFin's that still wrote above EFFF would be lost here exactly as
+         it would be on the machine.
+       - the CDP1854 UART card in the default expansion group: data on port
+         6, status and command on port 7.  asm/elfin/main-mini.s drives it.
+       - a 4 MHz clock, which is the Mini's.
+
+     No 1861 and no keyboard: the Mini's Pixie card is optional, and the Mini
+     has no keypad; the Elf's keyboard is on port 4.
+
+     Install with ../../run-emma.sh MINI=1, which copies this, the image and
+     the stand-in ROM into the Emma 02 data directory.
+-->
+
+<emmaconfig>
+
+    <system>
+        <name>Elf</name>
+        <config>ElFin on an 1802/Mini: RAM 0000-EFFF, ROM F000, 1854 on 6/7</config>
+        <cpu>1802</cpu>
+        <clock>4.0</clock>
+        <boot>0</boot>
+        <init ef="1">1</init>
+        <init ef="2">1</init>
+        <init ef="3">1</init>
+        <dirname>Elf</dirname>
+    </system>
+
+    <memory>
+        <ram type="gui">
+            <start>0x0000</start>
+            <end>0xEFFF</end>
+            <pulldown mask="elfin*.*">Elf</pulldown>
+            <filename verify="true">elfin-prog.hex</filename>
+        </ram>
+        <rom>
+            <start>0xF000</start>
+            <end>0xFFFF</end>
+            <filename>elfin-minirom.bin</filename>
+        </rom>
+    </memory>
+
+    <vt type="vt100" connection="uart1854" >
+        <font>vt100.bin</font>
+        <out type="register">6</out>     <!-- OUT 6: load transmitter -->
+        <out type="control" thre="unchanged">7</out>      <!-- OUT 7: load control; THRE as it was -->
+        <in type="register">6</in>       <!-- INP 6: read receiver    -->
+        <in type="status">7</in>         <!-- INP 7: DA, ES, THRE     -->
+        <baud type="receive">19200</baud>
+        <baud type="transmit">19200</baud>
+        <characters>80</characters>
+        <border>0x0</border>
+        <color type="fore">0, 255, 0</color>
+        <color type="back">0, 0x40, 0</color>
+        <color type="high">0, 0xff, 0</color>
+     </vt>
+
+    <debugger>
+        <!-- off: our SCRT is the jump-table variant with a one byte index,
+             not the standard two byte address, so Emma would mis-decode it. -->
+        <scrt mode="off">
+            <call reg="4">-1</call>
+            <return reg="5">-1</return>
+        </scrt>
+        <assembler>
+            <filename>mycode</filename>
+            <code_start>0</code_start>
+            <code_end>0xFFF</code_end>
+        </assembler>
+    </debugger>
+
+</emmaconfig>

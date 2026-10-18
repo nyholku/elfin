@@ -1,0 +1,3 @@
+# Reproducible with ./compile.sh elfin/main - the listing alone is 1.6 MB.
+main.lst
+main.p

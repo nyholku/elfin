@@ -1,0 +1,466 @@
+# CHESS in ElFin.  You play it: alpha-beta over a 0x88 board, material and
+# position, you are white by default and the machine answers on the terminal.
+#
+# In the Java reference, which replies instantly:
+#
+#   ./run-program.sh src/elfin/chess.txt
+#
+# On an Emma 02 1802, in the VT100 window Emma opens - and it is the window
+# with the green text, not the 1861's:
+#
+#   KEEP=1 ./run-emma.sh src/elfin/chess.txt 5 100
+#
+# Quit Emma yourself when the game is over.  The clock argument is not a
+# nicety there: one reply at DEPTH 2 is 137 million instructions, which is 23
+# minutes at the Elf's own 1.76 MHz and about half a minute at 100.  DEPTH 1
+# is 7.3 million - three seconds at 100 MHz - and plays like it, taking
+# whatever it can see one ply ahead and nothing else.
+#
+# A move is four characters, FROM then TO: E2E4.  Case does not matter, and
+# anything that is neither a file letter nor a rank digit is dropped as you
+# type it, so a return between moves costs nothing and a mistyped key is not
+# a move.  Q gives up, and so does Ctrl-Q.  What you type is looked up in the
+# list the generator produced for the position and refused if it is not
+# there, which is all the legality there is here.
+#
+# YOU is the side you play - 0 white, 8 black.  Set it to 9 and neither side
+# is yours: the machine plays both for LIM moves, which is what this program
+# was before it could be played, and that is also the mode that checks the
+# move generator.  PERFT counts the leaves of the move tree and the numbers
+# for the opening position are known - 20, 400 and 8902 for one, two and
+# three ply - and all three come out right.  Three ply is 324 million
+# instructions, 54 minutes on the Elf, which is why a game does not start
+# with it.
+#
+# What it does not know: castling, en passant, promotion, and whether a move
+# leaves its own king in check.  The king is worth more than everything else
+# together, so the search avoids losing it rather than being told it may not,
+# and the game ends when one of them is actually taken.
+#
+# 25 subroutines, 65 symbols of the 128 a program may have.  7649 bytes
+# tokenized, of which about two thousand is this comment: the encoding keeps
+# comments verbatim, so they cost their own length.  Names are deliberately
+# reused across subroutines - I, SQ, P, T -
+# because a symbol is interned once by name however many places use it.
+#
+# 0x88 board: square = rank*16 + file, and a square is off
+# the board exactly when (SQ & $88) is not zero, which is the whole reason
+# for the layout - it makes the edge test one AND.
+#
+# Piece codes: 1 pawn, 2 knight, 3 bishop, 4 rook, 5 queen, 6 king.
+# Bit $08 marks black, so COLOUR(P) is P & 8 and TYPE(P) is P & 7.
+DIM BRD[128]
+DIM MV[576]
+DIM MC[8]
+DIM CAP[8]
+DIM VAL[7]
+DIM CEN[8]
+YOU=0
+DEPTH=2
+LIM=200
+SETUP()
+SHOW()
+IF YOU==9
+ LIM=12
+ OUTS("PERFT 3: ")
+ OUTI(PERFT(0,0,3))
+ OUTS($"0D0A")
+TURN=0
+NMOV=0
+WHILE NMOV<LIM
+ IF TURN==YOU
+  MOVE=ASKMV(TURN)
+ ELSE
+  OUTS("THINKING")
+  OUTS($"0D0A")
+  MOVE=BESTMV(TURN,DEPTH)
+  IF MOVE>0
+   SHOWMV(MOVE)
+ IF MOVE==0
+  NMOV=LIM
+ ELSE
+  DOMV(0,MOVE)
+  SHOW()
+  NMOV=NMOV+1
+  TURN=8-TURN
+  IF (CAP[0]&7)==6
+   OUTS("THE KING IS GONE")
+   OUTS($"0D0A")
+   NMOV=LIM
+OUTS("GAME OVER")
+OUTS($"0D0A")
+
+DEF SETUP()
+ GLOBAL BRD
+ GLOBAL DIR
+ GLOBAL NOFF
+ GLOBAL VAL
+ DIR=$"81007F00900070008F00710091006F00"
+ NOFF=$"9F00A1008E00920061005F0072006E00"
+ VAL[0]=0
+ VAL[1]=100
+ VAL[2]=320
+ VAL[3]=330
+ VAL[4]=500
+ VAL[5]=900
+ VAL[6]=20000
+ GLOBAL CEN
+ CEN[0]=0
+ CEN[1]=1
+ CEN[2]=2
+ CEN[3]=3
+ CEN[4]=3
+ CEN[5]=2
+ CEN[6]=1
+ CEN[7]=0
+ I=0
+ WHILE I<128
+  BRD[I]=0
+  I=I+1
+ BACK=$"04000200030005000600030002000400"
+ I=0
+ WHILE I<8
+  BRD[I]=BACK[I]
+  BRD[16+I]=1
+  BRD[96+I]=9
+  BRD[112+I]=BACK[I]+8
+  I=I+1
+
+DEF SHOW()
+ GLOBAL BRD
+ PCH=$"2E0050004E004200520051004B00"
+ R=7
+ WHILE R>=0
+  PUTCH(49+R)
+  PUTCH(32)
+  F=0
+  WHILE F<8
+   P=BRD[R*16+F]
+   C=PCH[P&7]
+   IF P>8
+    C=C+32
+   PUTCH(C)
+   PUTCH(32)
+   F=F+1
+  OUTS($"0D0A")
+  R=R-1
+ OUTS("  A B C D E F G H")
+ OUTS($"0D0A")
+
+# ---- move generation ------------------------------------------------
+# A move is packed into one word: FROM*256 + TO.  Both are 0x88 squares and
+# so fit in a byte, which is the other thing the layout buys.
+
+DEF ADDMV(PLY,FR,TO,SD)
+ GLOBAL BRD
+ GLOBAL MV
+ GLOBAL MC
+ Q=BRD[TO]
+ IF Q>0
+  IF (Q&8)==SD
+   RETURN
+ N=MC[PLY]
+ MV[PLY*96+N]=FR*256+TO
+ MC[PLY]=N+1
+
+DEF GEN(PLY,SD)
+ GLOBAL BRD
+ GLOBAL MC
+ MC[PLY]=0
+ SQ=0
+ WHILE SQ<128
+  IF (SQ&136)==0
+   P=BRD[SQ]
+   IF P>0
+    IF (P&8)==SD
+     GENP(PLY,SQ,P,SD)
+  SQ=SQ+1
+
+DEF GENP(PLY,SQ,P,SD)
+ T=P&7
+ IF T==1
+  GPAWN(PLY,SQ,SD)
+ IF T==2
+  GHOP(PLY,SQ,SD,1)
+ IF T==3
+  GSLIDE(PLY,SQ,SD,4,7)
+ IF T==4
+  GSLIDE(PLY,SQ,SD,0,3)
+ IF T==5
+  GSLIDE(PLY,SQ,SD,0,7)
+ IF T==6
+  GHOP(PLY,SQ,SD,0)
+
+# One step in each direction: the king walks DIR, the knight NOFF.
+DEF GHOP(PLY,SQ,SD,K)
+ GLOBAL DIR
+ GLOBAL NOFF
+ D=0
+ WHILE D<8
+  IF K==0
+   O=DIR[D]-128
+  ELSE
+   O=NOFF[D]-128
+  T=SQ+O
+  IF (T&136)==0
+   ADDMV(PLY,SQ,T,SD)
+  D=D+1
+
+DEF GSLIDE(PLY,SQ,SD,A,B)
+ GLOBAL BRD
+ GLOBAL DIR
+ D=A
+ WHILE D<=B
+  O=DIR[D]-128
+  T=SQ+O
+  G=1
+  WHILE G==1
+   IF (T&136)==0
+    Q=BRD[T]
+    ADDMV(PLY,SQ,T,SD)
+    IF Q>0
+     G=0
+    T=T+O
+   ELSE
+    G=0
+  D=D+1
+
+DEF GPAWN(PLY,SQ,SD)
+ GLOBAL BRD
+ O=16
+ H=1
+ IF SD>0
+  O=0-16
+  H=6
+ T=SQ+O
+ IF (T&136)==0
+  IF BRD[T]==0
+   ADDMV(PLY,SQ,T,SD)
+   IF (SQ/16)==H
+    IF BRD[T+O]==0
+     ADDMV(PLY,SQ,T+O,SD)
+ D=0-1
+ WHILE D<2
+  T=SQ+O+D
+  IF (T&136)==0
+   IF BRD[T]>0
+    ADDMV(PLY,SQ,T,SD)
+  D=D+2
+
+# ---- making and unmaking --------------------------------------------
+# The captured piece is kept per ply, which is all this needs to undo: no
+# castling rights, no en passant square, no promotion yet.
+
+DEF DOMV(PLY,M)
+ GLOBAL BRD
+ GLOBAL CAP
+ T=M&255
+ CAP[PLY]=BRD[T]
+ BRD[T]=BRD[M/256]
+ BRD[M/256]=0
+
+DEF UNDOMV(PLY,M)
+ GLOBAL BRD
+ GLOBAL CAP
+ T=M&255
+ BRD[M/256]=BRD[T]
+ BRD[T]=CAP[PLY]
+
+# PERFT: count the leaves of the move tree, which is how a move generator
+# is checked - the numbers for the opening position are known.
+DEF PERFT(PLY,SD,D)
+ GLOBAL MV
+ GLOBAL MC
+ IF D==0
+  RETURN 1
+ GEN(PLY,SD)
+ N=MC[PLY]
+ I=0
+ S=0
+ WHILE I<N
+  M=MV[PLY*96+I]
+  DOMV(PLY,M)
+  S=S+PERFT(PLY+1,8-SD,D-1)
+  UNDOMV(PLY,M)
+  I=I+1
+ RETURN S
+
+# ---- evaluation and search ------------------------------------------
+
+# Material only, from white's point of view.  The king is worth more than
+# everything else together, so a line that wins it beats any other.
+DEF EVAL()
+ GLOBAL BRD
+ GLOBAL VAL
+ GLOBAL CEN
+ S=0
+ SQ=0
+ WHILE SQ<128
+  IF (SQ&136)==0
+   P=BRD[SQ]
+   IF P>0
+    V=VAL[P&7]+SCORE(SQ,P)
+    IF (P&8)>0
+     S=S-V
+    ELSE
+     S=S+V
+  SQ=SQ+1
+ RETURN S
+
+# What a piece is worth for standing where it does.  Material alone leaves
+# every line scoring the same, and the search then plays whichever move the
+# generator happened to produce first - rooks shuffling on the back rank.
+DEF SCORE(SQ,P)
+ GLOBAL CEN
+ T=P&7
+ R=SQ/16
+ IF (P&8)>0
+  R=7-R
+ IF T==1
+  RETURN R*4
+ IF T==6
+  RETURN 0
+ RETURN (CEN[SQ&7]+CEN[SQ/16])*3
+
+# The same, from the side to move's point of view, which is what negamax
+# wants: one routine searches for both colours because the score is always
+# "good for whoever is to move".
+DEF EVALS(SD)
+ V=EVAL()
+ IF SD>0
+  RETURN 0-V
+ RETURN V
+
+DEF SEARCH(PLY,SD,D,A,B)
+ GLOBAL MV
+ GLOBAL MC
+ IF D==0
+  RETURN EVALS(SD)
+ GEN(PLY,SD)
+ N=MC[PLY]
+ I=0
+ BEST=0-30000
+ WHILE I<N
+  M=MV[PLY*96+I]
+  DOMV(PLY,M)
+  V=0-SEARCH(PLY+1,8-SD,D-1,0-B,0-A)
+  UNDOMV(PLY,M)
+  IF V>BEST
+   BEST=V
+  IF BEST>A
+   A=BEST
+  IF A>=B
+   I=N
+  I=I+1
+ RETURN BEST
+
+DEF BESTMV(SD,D)
+ GLOBAL MV
+ GLOBAL MC
+ GEN(0,SD)
+ N=MC[0]
+ I=0
+ BEST=0-30000
+ R=0
+ WHILE I<N
+  M=MV[I]
+  DOMV(0,M)
+  V=0-SEARCH(1,8-SD,D-1,0-30000,30000)
+  UNDOMV(0,M)
+  IF V>BEST
+   BEST=V
+   R=M
+  I=I+1
+ RETURN R
+
+DEF SHOWMV(M)
+ F=M/256
+ T=M&255
+ PUTCH(97+(F&7))
+ PUTCH(49+(F/16))
+ PUTCH(97+(T&7))
+ PUTCH(49+(T/16))
+ OUTS($"0D0A")
+
+# ---- your side of it --------------------------------------------------
+# The generator is the rulebook: a move you type is a move only if it is in
+# the list GEN produced for this position, which costs one pass over at most
+# a hundred words and saves the board from a typed move that no piece could
+# make.
+
+DEF ASKMV(SD)
+ GLOBAL MV
+ GLOBAL MC
+ GEN(0,SD)
+ N=MC[0]
+ IF N==0
+  RETURN 0
+ M=0
+ WHILE M==0
+  OUTS("YOUR MOVE?")
+  OUTS($"0D0A")
+  FR=RDSQ()
+  IF FR<0
+   RETURN 0
+  TO=RDSQ()
+  IF TO<0
+   RETURN 0
+  OUTS($"0D0A")
+  M=FIND(FR*256+TO,N)
+  IF M==0
+   OUTS("NOT ONE OF YOUR MOVES")
+   OUTS($"0D0A")
+ RETURN M
+
+DEF FIND(M,N)
+ GLOBAL MV
+ I=0
+ WHILE I<N
+  IF MV[I]==M
+   RETURN M
+  I=I+1
+ RETURN 0
+
+# One square: a file letter and then a rank digit, each waited for until it
+# arrives.  Only the two characters it accepts are echoed, so a return or a
+# slipped key leaves nothing on the line to unsee.  Q anywhere gives up, and
+# -1 is how that is told apart from a1, which is square 0.
+DEF RDSQ()
+ F=0-1
+ WHILE F<0
+  C=UPCH()
+  IF C==81
+   RETURN 0-1
+  IF C>=65
+   IF C<=72
+    F=C-65
+    PUTCH(C+32)
+ R=0-1
+ WHILE R<0
+  C=UPCH()
+  IF C==81
+   RETURN 0-1
+  IF C>=49
+   IF C<=56
+    R=C-49
+    PUTCH(C)
+ RETURN R*16+F
+
+# Lower case reads as upper, and Ctrl-Q reads as Q.  Ctrl-Q is what quits the
+# editor, so it is the key this system already means "give up" by, and it is
+# also what the reference hands back for ever once its input has run out -
+# which is what turns a piped game that ends without a Q into a game that
+# ends rather than a loop that does not.
+DEF UPCH()
+ C=GETCH()
+ IF C==17
+  RETURN 81
+ IF C>96
+  IF C<123
+   RETURN C-32
+ RETURN C
+
+DEF PUTCH(C) $000D
+DEF GETCH() $000F
+DEF OUTS(S[]) $0017
+DEF OUTI(N) $0019

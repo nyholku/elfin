@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<!DOCTYPE emmaconfig SYSTEM "emma02.dtd">
+
+<!-- Emma 02 machine definition for ElFin on a 32K Elf.
+
+     elfin.xml with RAM only from 0000 to 7FFF: nothing answers above it, so
+     an image that still reached past 32K would fail here as it would on the
+     machine.  It loads elfin-32k.hex, which is what
+     ELF=1 RAM=32 ./make-image.sh builds.  No 1861: its screen is at F100.
+
+     The generic "Elf" is the target because its XML gives a free memory map
+     and a terminal on ports of our choosing.  The CDP1854 is on ports 6 and
+     7, data and status, where the 1802/Mini has it: that is the real machine,
+     and Emma's follows it, so a program sees one terminal on both.
+
+     Install with ../emma/run-emma.sh, which copies this and the assembled hex
+     into the Emma 02 data directory.
+-->
+
+<emmaconfig>
+
+    <system>
+        <name>Elf</name>
+        <config>ElFin on a 32K Elf: RAM 0000-7FFF, 1854 on 6/7</config>
+        <cpu>1802</cpu>
+        <clock>1.76</clock>
+        <boot>0</boot>
+        <init ef="1">1</init>
+        <init ef="2">1</init>
+        <init ef="3">1</init>
+        <dirname>Elf</dirname>
+    </system>
+
+    <memory>
+        <ram type="gui">
+            <start>0x0000</start>
+            <end>0x7FFF</end>
+            <pulldown mask="elfin*.*">Elf</pulldown>
+            <filename verify="true">elfin-32k.hex</filename>
+        </ram>
+    </memory>
+
+
+    <!-- Keys.  The Elf's own hex keypad is <frontpanel type="io">, which on
+         this machine is wiring and nothing else: no Xml/Elf config has panel
+         artwork, because the generic Elf never draws one - that is what the
+         separate COSMAC Elf machine is for - so there was nothing to press.
+         This is what Xml/Elf/elfos-biosio-pixie.xml uses, an Elf with a pixie
+         exactly like ours: a real keyboard on a port, EF3 for data ready.
+         asm/elfin/inline.s reads it - KEY() - and src/elfin/gunner.txt plays
+         with it: 4 left, 6 right, 5 fire. -->
+    <keyboard type="ascii">
+        <in>4</in>
+        <ef>3</ef>
+        <caps />
+    </keyboard>
+
+    <vt type="vt100" connection="uart1854" >
+        <font>vt100.bin</font>
+        <out type="register">6</out>     <!-- OUT 6: load transmitter -->
+        <out type="control" thre="unchanged">7</out>      <!-- OUT 7: load control; THRE as it was -->
+        <in type="register">6</in>       <!-- INP 6: read receiver    -->
+        <in type="status">7</in>         <!-- INP 7: bit 0 DA, bit 7 THRE -->
+        <baud type="receive">19200</baud>
+        <baud type="transmit">19200</baud>
+        <characters>80</characters>
+        <border>0x0</border>
+        <color type="fore">0, 255, 0</color>
+        <color type="back">0, 0x40, 0</color>
+        <color type="high">0, 0xff, 0</color>
+     </vt>
+
+    <debugger>
+        <!-- off: our SCRT is the jump-table variant with a one byte index,
+             not the standard two byte address, so Emma would mis-decode it. -->
+        <scrt mode="off">
+            <call reg="4">-1</call>
+            <return reg="5">-1</return>
+        </scrt>
+
+        <assembler>
+            <filename>mycode</filename>
+            <code_start>0</code_start>
+            <code_end>0xFFF</code_end>
+        </assembler>
+    </debugger>
+
+</emmaconfig>

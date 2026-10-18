@@ -1,0 +1,6 @@
+# build products: the assembled smoke test and the generated program image
+*.p
+*.lst
+elfin-smoke.hex
+elfin-prog.hex
+elfin-queens.hex

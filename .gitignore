@@ -1,0 +1,30 @@
+*.class
+*.jar
+*.war
+*.ear
+/bin/
+asl/
+a18/
+asm/*.hex
+asm/*.lst
+asm/*.p
+
+# generated images and listings for the 1802/Mini and Emma 02 build
+asm/elfin/main-mini.hex
+asm/elfin/main-mini.lst
+asm/elfin/main-mini.p
+asm/emma/*.hex
+asm/emma/*.p
+asm/emma/*.lst
+
+# the machine code a ElFin program carries: asm/inline.sh rebuilds it and
+# prints the byte strings, so only the source is worth keeping
+asm/elfin/inline.hex
+asm/elfin/inline.p
+asm/elfin/inline.lst
+
+# macOS Finder metadata, anywhere: the operating system's, not the project's
+.DS_Store
+
+# run-editor.sh compiles the Java editor prototype here
+build/
