@@ -2,13 +2,17 @@
 
 At around age of fifteen I begged, borrowed and stole parts for my first computer that was a Finnish knock-off of COSMAC VIP called Telmac which had 4 kB RAM later expanded to 12 kB with a 64 column by 16 line character display.
 
-![Telmac](telmac.jpg)
-
 
 
 I had Tiny BASIC for it and a floating point BASIC was also available though I never had that.
 
 In a few years that computer and other 8 bit CPU based computers were all but gone.
+
+
+![Telmac](telmac.jpg)
+
+*For an other nostalgic project see my article on [PICOSMAC](https://www.nutsvolts.com/magazine/article/picosmac-back-to-the-past) in Nuts & Volts which has its own github repo here 
+[here](https://github.com/nyholku/picosmac).*
 
 ### Wishful thinking now and back then
 
@@ -69,6 +73,16 @@ One sub goal I had in mind that ElFin should make it possible to write CHIP8 lik
 
 
 ### Key properties of ElFin
+
+This is a compiled language which is the *raison d'etre* for it.
+
+Compilation happens while you edit the code, it is not a separate step.
+
+All access to local and global variables is via offsets/address computed at compile time. 
+ 
+All control structures use pre computed branch instruction under the hood. 
+
+There is no name look up for symbols (variables, function names, keywords) at run time.
 
 The language supports recursion and local variables with long names.
 
@@ -135,7 +149,7 @@ For more complex examples see the chess program source code. To see how to embed
 
 ### P-code
 
-The editor and compiler fit in 32kB RAM with some room for ElFin programs. To make that possible they are implemented in P-code and  ElFin embeds a virtual machine for this.
+The editor and compiler fit in 32kB RAM with some room for ElFin programs. To make that possible they are implemented in P-code for a stack based machine and ElFin embeds a virtual machine for this.
 
 The P-code is documented in [PCODE documentation](PCODE.md)
 
