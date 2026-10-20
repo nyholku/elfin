@@ -49,9 +49,11 @@ if [ -x asl/asl ]; then
 			grep -E "error|FATAL" /tmp/elfin-build-$v.$$ | head -3
 			rc=1
 		else
-			top=$(grep -oE '\*?CODE_TOP :[ ]+[0-9A-F]+' asm/elfin/$v.lst | grep -oE '[0-9A-F]+$')
+			# NX_UNSTMT is assembled into the room after the p-code, so the room
+			# that is left ends where it does
+			top=$(grep -oE '\*?UNSTMT_TOP :[ ]+[0-9A-F]+' asm/elfin/$v.lst | grep -oE '[0-9A-F]+$')
 			tbl=$(grep -oE 'JMPTBL_BASE :[ ]+[0-9A-F]+' asm/elfin/$v.lst | grep -oE '[0-9A-F]+$')
-			echo "  $v: p-code ends at $top, the jump table starts at $tbl -> $(( 0x$tbl - 0x$top )) bytes left"
+			echo "  $v: p-code and NX_UNSTMT end at $top, the jump table starts at $tbl -> $(( 0x$tbl - 0x$top )) bytes left"
 		fi
 		rm -f /tmp/elfin-build-$v.$$
 	done
@@ -95,6 +97,10 @@ fi
 echo
 echo "### test suite ###"
 $JAVA -cp $BIN elfin.TestElFin | tail -30 || rc=1
+
+echo
+echo "### UNSTMT, the reference for the native rebuild, against PF_UNSTMT ###"
+$JAVA -cp $BIN elfin.TestUnstmt | tail -12 || rc=1
 
 if [ "$1" != "quick" ]; then
 	echo

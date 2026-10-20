@@ -25,7 +25,8 @@ import re, subprocess, sys, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXEC = 'asm/elfin/exec.inc.s'
 MAIN = 'asm/elfin/main.s'
-FILES = [EXEC, MAIN]
+UNSTMT = 'asm/elfin/unstmt.inc.s'
+FILES = [EXEC, MAIN, UNSTMT]
 VARIANTS = ['main', 'main-mini', 'main-emma']
 LONG = re.compile(r'^(\s*[A-Za-z_0-9]*:?\s+)L(BR|BZ|BNZ|BDF|BNF|BQ|BNQ)(\s+)')
 SHORT = re.compile(r'^(\s*[A-Za-z_0-9]*:?\s+)(BR|BZ|BNZ|BDF|BNF|BQ|BNQ)(\s+)(\S+)(.*)$')
@@ -108,7 +109,7 @@ def forbidden():
     return {'exec.inc.s': ex, 'main.s': mn}
 
 D_WRITES = re.compile(r'^\s+(SGE|UGE|PUSH2|POP2|LDI|LDN|LDA|LDX|LDXA|GLO|GHI|INP|LD16|LDRI|LDB'
-                      r'|NXRET|NXCALLI|NXCALLF|PUSHR|POPR|ST16)\b')
+                      r'|NXRET|NXCALLI|NXCALLF|PUSHR|POPR|ST16|UNULT|UNERR|UNFULL|UNFSTK|UNLDW|UNSTW|NXLEAVE)\b')
 D_NEUTRAL = re.compile(r'^\s+(INC|DEC|SEX|IRX)\b')
 
 def d_dead(f, target):
@@ -125,7 +126,7 @@ def d_dead(f, target):
     return False
 
 STOPS = re.compile(r'^\s+(BR|FBR|NXRET|NXDONE|NXDONEF|NXDONE6|TOR3|R6JMP|NXCALLI|NXCALLF|NXTAIL|NXTAILF)\b')
-X_R2 = re.compile(r'^\s+(SEX\s+R2|CALLH|LDVEC)\b')
+X_R2 = re.compile(r'^\s+(SEX\s+R2|CALLH|LDVEC|NXENTER)\b')  # NXENTER ends on SEX R2
 
 def x_is_r2(L, n):
     """X on R2 at line n: the last SEX before it, back to where nothing falls in."""

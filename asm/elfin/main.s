@@ -137,6 +137,7 @@ WS_LO_    EQU  05D00h
 VAR_PAGE  EQU  WS_LO_    ; page aligned: the 0xC0 band reads hi(VAR_PAGE)
 ASSERTCNT EQU  VAR_PAGE+080h
 NX_DATA   EQU  VAR_PAGE+082h ; fifty bytes, to B4
+UN_CELLS  EQU  VAR_PAGE+0B4h ; NX_UNSTMT's three bytes, to B6
 NX_NUMBUF EQU  VAR_PAGE+0B8h ; five digits; the executor indexes it in the page
 HELPERS_AT EQU VAR_PAGE+0FFh ; pcode.s's one helper byte, HALT_H
 COLD_AT   EQU  WS_LO_+0100h  ; up to sixty-four cold registers
@@ -852,4 +853,17 @@ EXEC_TOP:
 TAB_TOP:
         IF $ > WS_LO_
           FATAL "the dispatch table has grown into the workspace"
+        ENDIF
+
+; ---------------------------------------------------------------------------
+; NX_UNSTMT, the rebuild to infix, in the room between the generated code and
+; the jump table.  It is assembled down here, after the executor, because it
+; is built from the executor's macros, and ORG puts it back where it lives.
+; ---------------------------------------------------------------------------
+        ORG   CODE_TOP
+        INCLUDE "unstmt.inc.s"
+
+UNSTMT_TOP:
+        IF $ > JMPTBL_BASE
+          FATAL "NX_UNSTMT has grown into the jump table"
         ENDIF

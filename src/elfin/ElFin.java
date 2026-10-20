@@ -319,23 +319,14 @@ public class ElFin {
 	// holds sixty-four slots, of which the rest of the system already wants
 	// fifty-seven.  They are touched once per line typed or listed, so the
 	// memory access costs nothing that matters.
-	static int PFS; // COLD
-	static int PFD; // COLD
+	static int PFS;
+	static int PFD;
 	static int PFO; // COLD
-	static int PFE; // COLD
+	static int PFE;
 	static int PFB; // COLD
 	static int PFSPLIT; // COLD
 	static int PFBASE; // COLD
-	static int FSP; // COLD
-	static int FFILL; // COLD
-	static int FAT; // COLD
-	static int UNEND; // COLD
-	static int UNITEM; // COLD
-	static int UNARG; // COLD
 	static int LASTOFF; // COLD
-	static int PARENF; // COLD
-	static int PARENP; // COLD
-	static int PFTOFF; // COLD
 	static int PARENB; // COLD
 	static int PARENE; // COLD
 	static int DSTORE; // COLD
@@ -1986,284 +1977,8 @@ public class ElFin {
 		PFD = m16(PFD + 1);
 	}
 
-	// ---- the other direction -------------------------------------------
-	//
-	// Compiled back to infix, for the editor and the lister.  A stack of
-	// FRAGMENTS: each is a finished piece of infix text lying in the arena,
-	// and an operator combines the top two by inserting itself between them,
-	// with parentheses only where precedence demands them.  The arena is the
-	// low end of the gap, which is free - the line being edited lives at the
-	// high end.
-	//
-	// Fragment starts are one byte because a line is at most MAX_LINE, so the
-	// two stacks fit the same 64 bytes the compiler uses going the other way.
-	//
-	// Iterative, like everything else here: the p-code has no recursion.
-
-	static final int FSTK = OPSTK; // 32 fragment starts, one byte each
-	static final int FPRC = ARSTK; // and the precedence of each
-
-	// FPUSH: remember a fragment beginning at T1 with precedence T2.
-	static void FPUSH() {
-		wr8(FSTK + FSP, T1);
-		wr8(FPRC + FSP, T2);
-		FSP = FSP + 1;
-	}
-
-	// FINS: insert the byte in T2 at arena offset T1, shifting the rest up.
-	static void FINS() {
-		if (FFILL >= FARENA_SIZE) {
-			ERR = E_LINE_TOO_LONG;
-			ERRPOS = LINESTART;
-			return;
-		}
-		T3 = FFILL;
-		while (T3 > T1) { // NOERR: bounded by the arena
-			wr8(FAT + T3, rd8(FAT + T3 - 1));
-			T3 = T3 - 1;
-		}
-		wr8(FAT + T1, T2);
-		FFILL = FFILL + 1;
-	}
-
-	// FWRAP: put ( ) round the fragment from T1 to the end of the arena.  Only
-	// the topmost fragment reaches the end, so a left operand cannot use this.
-	static void FWRAP() {
-		T2 = T_LPAR;
-		FINS();
-		T1 = FFILL;
-		T2 = T_RPAR;
-		FINS();
-	}
-
-	// PF_UNOPERAND: copy the operand at PFS into the arena as a fragment.
-	static void PF_UNOPERAND() {
-		T1 = FFILL;
-		T2 = 15; // an operand never needs wrapping
-		FPUSH();
-		T3 = rd8(PFS);
-		SKIP_WIDTH();
-		while (T3 != 0 && FFILL < FARENA_SIZE) { // NOERR: the token's own width
-			wr8(FAT + FFILL, rd8(PFS));
-			FFILL = FFILL + 1;
-			PFS = m16(PFS + 1);
-			T3 = T3 - 1;
-		}
-		// A full arena stops the copy with the token half read.  Saying so is
-		// not optional: PF_UNRANGE loops until PFS reaches the end, and PFS is
-		// exactly what did not move.
-		if (T3 != 0) {
-			ERR = E_LINE_TOO_LONG;
-			ERRPOS = LINESTART;
-		}
-	}
-
-	// PF_UNBIN: the top two fragments and the operator at PFS become one.
-	static void PF_UNBIN() {
-		T1 = rd8(PFS);
-		PF_PREC();
-		PFB = T2; // this operator's precedence
-		FSP = FSP - 1;
-		PFBASE = rd8(FSTK + FSP); // right fragment start
-		PFSPLIT = rd8(FPRC + FSP); // and its precedence
-		FSP = FSP - 1;
-		PFO = rd8(FSTK + FSP); // left fragment start
-		T3 = rd8(FPRC + FSP);
-		if (T3 < PFB) { // the left needs ( ) - and it does NOT run to the end
-			T1 = PFO;
-			T2 = T_LPAR;
-			FINS();
-			T1 = PFBASE + 1; // the right fragment moved up by the insert
-			T2 = T_RPAR;
-			FINS();
-			PFBASE = PFBASE + 2;
-		}
-		if (PFSPLIT <= PFB) { // the right does too: these are left associative
-			T1 = PFBASE;
-			FWRAP();
-		}
-		T1 = PFBASE; // the operator goes between them
-		T2 = rd8(PFS);
-		FINS();
-		T1 = PFO;
-		T2 = PFB;
-		FPUSH();
-		PFS = m16(PFS + 1);
-	}
-
-	// PF_UNUN: a unary operator, which printed before its operand.
-	static void PF_UNUN() {
-		T1 = rd8(PFS);
-		PF_PREC();
-		PFB = T2;
-		FSP = FSP - 1;
-		PFO = rd8(FSTK + FSP);
-		T3 = rd8(FPRC + FSP);
-		if (T3 < PFB) {
-			T1 = PFO;
-			FWRAP();
-		}
-		T1 = PFO;
-		T2 = rd8(PFS);
-		FINS();
-		T1 = PFO;
-		T2 = PFB;
-		FPUSH();
-		PFS = m16(PFS + 1);
-	}
-
-	// PF_UNINDEX: base and index become base[index].
-	static void PF_UNINDEX() {
-		FSP = FSP - 1;
-		PFBASE = rd8(FSTK + FSP); // the index
-		FSP = FSP - 1;
-		PFO = rd8(FSTK + FSP); // the base
-		T1 = PFBASE;
-		T2 = T_LBRA;
-		FINS();
-		T1 = FFILL;
-		T2 = T_RBRA;
-		FINS();
-		T1 = PFO;
-		T2 = 15;
-		FPUSH();
-		PFS = m16(PFS + 1);
-	}
-
-	// PF_UNDIM: X.DIM
-	static void PF_UNDIM() {
-		T1 = FFILL;
-		T2 = T_DIMQ;
-		FINS();
-		PFS = m16(PFS + 1);
-	}
-
-	// PF_UNCALL: n arguments and a callee become NAME(a,b,..).
-	//
-	// The callee is one byte - a reference always is - so putting it in front
-	// of its arguments is a single insert, not a move of anything large.
-	static void PF_UNCALL() {
-		T1 = rd8(PFS);
-		if (T1 == T_CALLN) {
-			PFB = rd8(PFS + 1);
-			PFSPLIT = rd8(PFS + 2); // the name it calls
-			PFS = m16(PFS + 3);
-		} else {
-			PFB = T1 - T_CALL0;
-			PFSPLIT = rd8(PFS + 1);
-			PFS = m16(PFS + 2);
-		}
-		PFO = FFILL; // where the name goes when there are no arguments
-		// the first argument, if any, is where the name goes instead
-		if (PFB == 0)
-			PFBASE = PFO;
-		else {
-			FSP = FSP - PFB;
-			PFBASE = rd8(FSTK + FSP);
-			// commas between the arguments.  UNARG, not T3: FINS uses T3.
-			UNARG = 1;
-			while (UNARG < PFB) { // NOERR: the arity
-				T1 = rd8(FSTK + FSP + UNARG) - 1 + UNARG;
-				T2 = T_COMMA;
-				FINS();
-				UNARG = UNARG + 1;
-			}
-		}
-		T1 = PFBASE;
-		T2 = PFSPLIT; // the name
-		FINS();
-		T1 = PFBASE + 1;
-		T2 = T_LPAR;
-		FINS();
-		T1 = FFILL;
-		T2 = T_RPAR;
-		FINS();
-		T1 = PFBASE;
-		T2 = 15;
-		FPUSH();
-	}
-
-	// PAREN_HAS: is there a record saying offset TN was parenthesised?
-	// The payload is [PARENB, PARENE): TAILBUF while a line is being tokenized,
-	// the stored tail block while one is being listed.
-	static void PAREN_HAS() {
-		PARENF = 0;
-		PARENP = PARENB;
-		// Count them, do not stop at the first: "((X))" is two records with
-		// the same offset, and wrapping once loses a pair - and with it the
-		// gap numbering for everything after, because the gaps are keyed by
-		// source token and two tokens then fail to appear.
-		while (ult(PARENP, PARENE)) { // NOERR: bounded by the tail
-			CH = rd8(PARENP);
-			if (CH == 0xFF)
-				PARENP = PARENE; // a comment runs to the end
-			else if (CH == 0xF1) {
-				if (rd8(PARENP + 1) == TN)
-					PARENF = PARENF + 1;
-				PARENP = m16(PARENP + 2);
-			} else if (CH == 0xF0)
-				PARENP = m16(PARENP + 3);
-			else
-				PARENP = m16(PARENP + 1);
-		}
-	}
-
-	// PF_UNRANGE: decompile [PFS, PFE) and append the infix to PFD.
-	static void PF_UNRANGE() {
-		FSP = 0;
-		FFILL = 0;
-		while (ult(PFS, PFE) && ERR == 0) {
-			PFTOFF = m16(PFS - TOKBUF - 1); // where this token sits in the line
-			T1 = rd8(PFS);
-			if (T1 >= T_CALL0 && T1 <= T_CALLN)
-				PF_UNCALL();
-			else if (T1 == T_LBRA)
-				PF_UNINDEX();
-			else if (T1 == T_DIMQ)
-				PF_UNDIM();
-			else if (T1 == T_AMP) { // &NAME, two bytes, one operand
-				PF_UNOPERAND();
-				T1 = FFILL;
-				T3 = rd8(PFS);
-				SKIP_WIDTH();
-				while (T3 != 0 && FFILL < FARENA_SIZE) { // NOERR: the name
-					wr8(FAT + FFILL, rd8(PFS));
-					FFILL = FFILL + 1;
-					PFS = m16(PFS + 1);
-					T3 = T3 - 1;
-				}
-				if (T3 != 0) { // as in PF_UNOPERAND: a full arena must be an error
-					ERR = E_LINE_TOO_LONG;
-					ERRPOS = LINESTART;
-				}
-			} else {
-				PF_PREC();
-				if (T2 == 0)
-					PF_UNOPERAND();
-				else if (T1 == T_NEG || T1 == T_POS)
-					PF_UNUN();
-				else
-					PF_UNBIN();
-			}
-			// the source wrapped this one: put its parentheses back, one
-			// pair per record, innermost first - FWRAP inserts at the
-			// fragment's start, which does not move
-			TN = PFTOFF;
-			PAREN_HAS();
-			while (PARENF != 0 && FSP > 0 && ERR == 0) {
-				T1 = rd8(FSTK + FSP - 1);
-				FWRAP();
-				wr8(FPRC + FSP - 1, 15);
-				PARENF = PARENF - 1;
-			}
-		}
-		T3 = 0;
-		while (T3 < FFILL && ERR == 0) {
-			wr8(PFD, rd8(FAT + T3));
-			PFD = m16(PFD + 1);
-			T3 = T3 + 1;
-		}
-	}
+	// The other direction, compiled back to infix for the editor and the
+	// lister, is UNSTMT below.
 
 	// PF_STMT: rewrite the statement now in TOKBUF into the compiled form.
 	//   IN:  TOKBUF holds the indent byte, TOKBUF+1..OUTP one statement
@@ -2328,60 +2043,29 @@ public class ElFin {
 		}
 	}
 
-	// PF_UNSTMT: the inverse of PF_STMT, over the statement in TOKBUF.
-	static void PF_UNSTMT() {
-		T1 = rd8(TOKBUF + 1);
-		if (T1 == T_DEF || T1 == T_GLOBAL || T1 == T_DIM)
-			return;
-		FAT = FARENA;
-		PFD = PFBUF;
-		PFS = TOKBUF + 1;
-		if (T1 == T_RETURN || T1 == T_IF || T1 == T_WHILE || T1 == T_ELSE)
-			PF_PUT();
-		PFE = OUTP;
-		PFB = PFS;
-		PFSPLIT = 0;
-		while (ult(PFS, PFE) && PFSPLIT == 0) { // NOERR: bounded by the line
-			if (rd8(PFS) == T_ASSIGN || rd8(PFS) == T_PULLA)
-				PFSPLIT = PFS;
-			else {
-				T3 = rd8(PFS);
-				SKIP_WIDTH();
-				PFS = m16(PFS + T3);
-			}
-		}
-		if (PFSPLIT != 0) {
-			UNEND = PFB; // PF_UNRANGE uses PFB as scratch; keep ours clear of it
-			UNITEM = PFSPLIT;
-			PFS = m16(UNITEM + 1); // the target is printed first
-			PF_UNRANGE();
-			wr8(PFD, T_ASSIGN);
-			PFD = m16(PFD + 1);
-			PFS = UNEND;
-			PFE = UNITEM;
-			PF_UNRANGE();
-		} else {
-			// A statement with no store is one expression: a call, or what
-			// RETURN, IF and WHILE carry.
-			PFS = PFB;
-			PF_UNRANGE();
-		}
-		// The loop registers are scratch and must not outlive the call: what
-		// they hold depends on how many items the line had, and a phase
-		// boundary is where that difference would show up as a false
-		// divergence between the reference and the machine.
-		UNEND = 0;
-		UNITEM = 0;
-		UNARG = 0;
-		if (ERR != 0)
-			return;
-		PFE = PFD;
-		PFS = PFBUF;
-		OUTP = TOKBUF + 1;
-		while (ult(PFS, PFE) && ERR == 0) {
-			emit(rd8(PFS));
-			PFS = m16(PFS + 1);
-		}
+	// What emit() lets through after the header byte at TOKBUF.  Every line
+	// painted is copied out of the store into TOKBUF and back from PFBUF, and
+	// both are one MEMMOVE checked against this: a loop of emit()s cost about
+	// three hundred instructions a byte.
+	static final int TOKROOM = TOKBUF_END - TOKBUF - 1;
+
+	// UNSTMT: the inverse of PF_STMT, over the statement in TOKBUF.
+	//   IN:  TOKBUF+1..OUTP the compiled statement, [PARENB, PARENE) the line's
+	//        parenthesis records, LINESTART
+	//   OUT: TOKBUF+1..OUTP the infix the source had, ERR, ERRPOS
+	//
+	// A stack of fragments: each is a finished piece of infix lying in the
+	// arena, and an operator combines the top two by inserting itself between
+	// them, with parentheses only where precedence demands them - and where the
+	// source had them anyway, which the tail's parenthesis records say.
+	//
+	// Every line painted goes through this, and in p-code it was a third of the
+	// time a screen took: four or five thousand instructions a token.  So on
+	// the machine it is a SYSCALL to hand written 1802 code, NX_UNSTMT in
+	// asm/elfin/unstmt.inc.s, and Unstmt.java is the same walk for the
+	// reference.  Neither touches a register but the ones above.
+	static void UNSTMT() {
+		Unstmt.run();
 	}
 
 	// TOKENIZE_LINE_OR_RAW: tokenize, or keep the line verbatim behind a RAW
@@ -2634,15 +2318,15 @@ public class ElFin {
 	// was there before.
 	// ====================================================================
 
-	static int ECURL; // the line the cursor is on, as an address in the store
-	static int ELEN; // characters in the line being edited
+	static int ECURL; // COLD // the line the cursor is on, as an address in the store
+	static int ELEN; // COLD // characters in the line being edited
 	static int EDIRTY; // is a line unpacked into the gap
-	static int EMOD; // ... and has it actually been changed
+	static int EMOD; // COLD // ... and has it actually been changed
 	// How many stored lines the commit replaces.  One normally; none for a line
 	// typed past the end of the program, which has no original; two after a
 	// join, which is the whole of what joining costs - the second line is never
 	// moved or deleted, it is simply not kept.
-	static int EDISC;
+	static int EDISC; // COLD
 	static int EJLEN; // the length to put back if a join will not fit
 
 	// ED_START: unpack the line at ECURL into the top of the gap.
@@ -3053,9 +2737,9 @@ public class ElFin {
 	static int ESHIFT; // COLD  the terminal just scrolled: 1 down, 2 up, 0 no
 
 	static int EKEY; // the key being handled
-	static int ELRD; // only the line under the cursor needs repainting
+	static int ELRD; // COLD // only the line under the cursor needs repainting
 	static int ERUN; // the editor is running
-	static int ECHAR; // the character being inserted
+	static int ECHAR; // COLD // the character being inserted
 	static int ELDONE; // COLD  a load has reached the end of the text
 	static int ELPREV; // COLD  the byte before, raw: an LF after a CR is nothing
 
@@ -4221,12 +3905,18 @@ public class ElFin {
 
 	// DETOK_PRESCAN: locate this line's tail and comment blocks.
 	//   IN:  LSTART   OUT: TAILP, TAILE, CMTP, CMTLEN, PC on the block or the
-	//        next line header
+	//        next line header, PARENB on the first parenthesis record or 0
+	//
+	// PARENB is for UNSTMT, which looks for parenthesis records for every token
+	// of the statement, and used to walk every gap record in the tail to find
+	// the few lines that have one at all.  Starting it at the first one makes
+	// that walk empty for all the others.
 	static void DETOK_PRESCAN() {
 		TAILP = 0;
 		TAILE = 0;
 		CMTP = 0;
 		CMTLEN = 0;
+		PARENB = 0;
 		PC = m16(LSTART + 1);
 		while (rd8(PC) > T_EOL_HI) // NOERR
 			SKIP_ITEM();
@@ -4249,9 +3939,11 @@ public class ElFin {
 			}
 			if (rd8(T1) == 0xF0)
 				T1 = m16(T1 + 3);
-			else if (rd8(T1) == 0xF1)
+			else if (rd8(T1) == 0xF1) {
+				if (PARENB == 0)
+					PARENB = T1;
 				T1 = m16(T1 + 2); // a parenthesis record
-			else
+			} else
 				T1 = m16(T1 + 1);
 		}
 	}
@@ -4279,15 +3971,20 @@ public class ElFin {
 		// turn it back into the infix the source had, then render that: the
 		// tail's gap numbers are in source order and only match the infix.
 		OUTP = TOKBUF + 1;
-		T1 = m16(LSTART + 1);
-		while (ult(T1, DSTORE) && ERR == 0) {
-			emit(rd8(T1));
-			T1 = m16(T1 + 1);
+		if (ERR == 0) {
+			T2 = m16(DSTORE - LSTART - 1);
+			if (ult(TOKROOM, T2)) {
+				T2 = TOKROOM;
+				ERR = E_LINE_TOO_LONG;
+			}
+			MEMMOVE(OUTP, m16(LSTART + 1), T2);
+			OUTP = m16(OUTP + T2);
 		}
 		wr8(OUTP, 0); // a header byte ends the statement for the render loop
-		PARENB = TAILP;
+		if (PARENB == 0)
+			PARENB = TAILE; // no parenthesis records: an empty range
 		PARENE = TAILE;
-		PF_UNSTMT();
+		UNSTMT();
 		wr8(OUTP, 0);
 
 		GAPNO = 0;

@@ -102,6 +102,18 @@ pJUMPN    MACRO ADDR
           pGOTO ADDR
           ENDM
 
+; pBRULT / pBRUGE: the unified encoding's unsigned compare-and-branch, spelled
+; out as the pair it replaces.
+pBRULT    MACRO ADDR
+          pULT
+          pJUMP ADDR
+          ENDM
+
+pBRUGE    MACRO ADDR
+          pULT
+          pJUMPN ADDR
+          ENDM
+
 ; pBREQ8 / pBRNE8: the unified encoding's compare-and-branch, which this VM
 ; has no opcode for, spelled out as the sequence it replaces.
 pBREQ8    MACRO VARIABLE,VALUE,ADDR

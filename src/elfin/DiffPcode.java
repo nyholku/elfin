@@ -460,6 +460,10 @@ public class DiffPcode {
 				new String[] { "1" });
 		runGate("a subroutine", new String[] { "PRINT SQ(7)", "DEF SQ(X)", "  RETURN X*X" },
 				new String[] { "49" });
+		// a call's value is stored when an assignment follows it, and dropped
+		// only when the call is the whole statement
+		runGate("a subroutine's value stored", new String[] { "A=SQ(7)", "SQ(2)", "B=SQ(3)+1", "PRINT A",
+				"PRINT B", "DEF SQ(X)", "  RETURN X*X" }, new String[] { "49", "10" });
 
 		System.out.println();
 		System.out.println("--- editing in the store ---");

@@ -7,7 +7,9 @@
 #
 # Usage:  ./run-smoke.sh [name] [seconds]
 #            name     assembly source in this directory, no extension (smoke)
-#            seconds  how long to let it run before quitting (8)
+#            seconds  how long to let it run before quitting it; without
+#                     it, or with -, it runs until you quit it, and the
+#                     terminal is printed then
 #
 # Interactive instead:  ./run-smoke.sh smoke keep
 # leaves the emulator up so you can type into the VT100 window yourself.
@@ -15,7 +17,7 @@ set -e
 cd "$(dirname "$0")"
 
 NAME=${1:-smoke}
-HOLD=${2:-8}
+HOLD=${2:--}
 
 EMMA="/Applications/Emma 02.app/Contents/MacOS/Emma 02"
 DATA="$HOME/Emma 02"
@@ -44,6 +46,7 @@ fi
 BEFORE=$(ls "$DATA"/terminal*.log 2>/dev/null | wc -l)
 
 "$EMMA" -c=elf -x="elfin-$NAME.xml" -u -ns -v >/tmp/emma-$NAME.out 2>&1 &
+EMMAPID=$!
 
 if [ "$HOLD" = keep ]; then
     echo "Emma 02 is running elfin-$NAME.xml.  Type in the VT100 window."
@@ -51,12 +54,16 @@ if [ "$HOLD" = keep ]; then
     exit 0
 fi
 
-sleep "$HOLD"
-
 # A clean quit is what runs the VT destructor, which is what writes the log.
 # SIGTERM loses it.
-osascript -e 'tell application "Emma 02" to quit'
-sleep 2
+if [ "$HOLD" = - ]; then
+    echo "Emma 02 is running elfin-$NAME.xml; quit it when you are done and the terminal is printed."
+    wait $EMMAPID || true
+else
+    sleep "$HOLD"
+    osascript -e 'tell application "Emma 02" to quit'
+    sleep 2
+fi
 
 AFTER=$(ls "$DATA"/terminal*.log 2>/dev/null | wc -l)
 if [ "$AFTER" -le "$BEFORE" ]; then

@@ -5,8 +5,11 @@
 #
 #   FILE       a ElFin program, e.g. src/elfin/eightqueens.txt
 #   seconds    how long to let it run before quitting Emma and printing what
-#              its terminal saw (default 15).  It has to outlast the program:
-#              a short hold prints the first few lines and reports a mismatch.
+#              its terminal saw.  Without it, or with -, Emma runs until you
+#              quit it, and what its terminal saw is printed then: Emma only
+#              writes its log on a clean quit, so one of the two has to end
+#              the run.  A timed run has to outlast the program: a short hold
+#              prints the first few lines and reports a mismatch.
 #   clockMHz   emulated clock.  The default 1.76 is the Elf's, and it is what
 #              every timing in the documentation means: the 1802 averages 17.2
 #              clocks an instruction, so about 100,000 a second, and eight
@@ -23,11 +26,11 @@
 # NOT printed: it is the whole answer, it arrives in two seconds, and printing
 # it ahead of the run made a program that had barely started look finished.
 #
-# KEEP=1 leaves Emma 02 running instead of quitting it.  The CDP1861 draws
-# into a window of its own and none of it reaches the terminal log, so a
-# program that draws has to be looked at: start it with KEEP=1 and quit Emma
-# yourself when you have seen it.  Nothing is diffed in that case - the log is
-# only written on a clean quit.
+# KEEP=1 leaves Emma 02 running and this script returns once it is up (after
+# the seconds, if given).  The CDP1861 draws into a window of its own and none
+# of it reaches the terminal log, so a program that draws has to be looked at:
+# start it with KEEP=1, or with no seconds, and quit Emma yourself when you
+# have seen it.  With KEEP=1 nothing is printed or diffed.
 #
 # KEEP=1 is also how a program that reads the terminal is played.  Emma's
 # VT100 window is a terminal in both directions: what the program prints
@@ -52,8 +55,11 @@
 #   MINI=1 KEEP=1 ./run-emma.sh src/elfin/chess.txt 5    chess on an 1802/Mini
 #   KEEP=1 ./run-emma.sh src/elfin/sierpinski.txt 5 50   and look at it
 #   KEEP=1 ./run-emma.sh src/elfin/chess.txt 5 100       and play it
-#   ./run-emma.sh src/elfin/eightqueens.txt 1400        at the Elf's own speed
-#   ./run-emma.sh src/elfin/eightqueens.txt 240 100     the same run, impatient
+#   ./run-emma.sh src/elfin/eightqueens.txt             at the Elf's own speed,
+#                                                       until you quit Emma
+#   ./run-emma.sh src/elfin/eightqueens.txt 240 100     timed and faster, as a
+#                                                       script would run it
+#   ./run-emma.sh src/elfin/eightqueens.txt - 100       faster, until you quit
 #
 # The program cannot be typed in - Emma 02 has no scriptable path into the
 # terminal - so elfin.EmmaImage tokenizes and compiles it on the simulator and
@@ -65,7 +71,7 @@ EMMADIR=asm/emma
 
 FILE=${1:?usage: run-emma.sh FILE [seconds] [clockMHz] ['OLD=NEW' ...]}
 [ -f "$FILE" ] || { echo "no such program: $FILE"; exit 1; }
-HOLD=${2:-15}
+HOLD=${2:--}
 VARIANT=main-mini
 if [ -n "$MINI" ]; then
     XML=elfin-mini.xml; RAMTOP=0xF000; CLOCK=${3:-4.0}
@@ -105,10 +111,10 @@ grep -q '^SerialLog=1' "$INI" || sed -i '' 's/^SerialLog=0$/SerialLog=1/' "$INI"
 BEFORE=$(ls "$DATA"/terminal*.log 2>/dev/null | wc -l)
 
 "$EMMA" -c=elf -x=$XML -u -ns -v >/tmp/emma-elfin.out 2>&1 &
+EMMAPID=$!
 
-echo "Emma 02 is running at ${CLOCK} MHz; waiting ${HOLD}s for it, then quitting it."
-sleep "$HOLD"
 if [ -n "$KEEP" ]; then
+    [ "$HOLD" = - ] || sleep "$HOLD"
     echo "Emma 02 is still running.  The 1861's window is the one with the"
     echo "picture in it; the VT100's is the green one, and it takes what you"
     echo "type straight to INP 6, which is where a program reading the"
@@ -116,8 +122,15 @@ if [ -n "$KEEP" ]; then
     echo "diffed, because the terminal log is only written on a clean quit."
     exit 0
 fi
-osascript -e 'tell application "Emma 02" to quit'   # the quit is what writes the log
-sleep 2
+if [ "$HOLD" = - ]; then
+    echo "Emma 02 is running at ${CLOCK} MHz; quit it when you are done and what its terminal saw is printed."
+    wait $EMMAPID || true                           # your quit is what writes the log
+else
+    echo "Emma 02 is running at ${CLOCK} MHz; waiting ${HOLD}s for it, then quitting it."
+    sleep "$HOLD"
+    osascript -e 'tell application "Emma 02" to quit'   # the quit is what writes the log
+    sleep 2
+fi
 
 AFTER=$(ls "$DATA"/terminal*.log 2>/dev/null | wc -l)
 [ "$AFTER" -gt "$BEFORE" ] || { echo "no new terminal log - it did not start:"; cat /tmp/emma-elfin.out; exit 1; }
@@ -131,7 +144,11 @@ sed -n '/^what it should print:/,$p' /tmp/emma-expect.$$ | tail -n +2 | sed 's/^
 if diff -q /tmp/emma-want.$$ "$LOG" >/dev/null 2>&1; then
     echo "--- MATCHES the reference"
 else
-    echo "--- differs from the reference (or did not finish - give it more seconds):"
+    if [ "$HOLD" = - ]; then
+        echo "--- differs from the reference (or was quit before it finished):"
+    else
+        echo "--- differs from the reference (or did not finish - give it more seconds):"
+    fi
     diff /tmp/emma-want.$$ "$LOG" | head -20 || true
 fi
 rm -f /tmp/emma-expect.$$ /tmp/emma-want.$$

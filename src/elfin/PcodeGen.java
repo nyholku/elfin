@@ -693,7 +693,7 @@ public class PcodeGen {
 	// changes the generated code with no change here.
 	static final Set<String> NATIVE = new HashSet<String>(
 			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND",
-					"STORAGE"));
+					"STORAGE", "UNSTMT"));
 
 	// The notice every source file carries, and so the code generated from one.
 	static final String[] LICENSE_NOTICE = { "ElFin - a programming language for the CDP1802",
@@ -1164,9 +1164,8 @@ public class PcodeGen {
 			boolean negate = e.op.equals("<=") || e.op.equals(">=");
 			genValue(swap ? e.b : e.a);
 			genValue(swap ? e.a : e.b);
-			op("pULT", 1);
 			push(-2);
-			op(((jumpIfTrue != negate) ? "pJUMP   " : "pJUMPN  ") + target, 3);
+			op(((jumpIfTrue != negate) ? "pBRULT  " : "pBRUGE  ") + target, 3);
 			return;
 		}
 		// ult and ugt are unsigned, and that is not a detail: the system
@@ -1178,9 +1177,8 @@ public class PcodeGen {
 		if (e.kind == E_CALL && (e.op.equals("ult") || e.op.equals("ugt")) && e.args.size() == 2) {
 			genValue(e.args.get(e.op.equals("ult") ? 0 : 1));
 			genValue(e.args.get(e.op.equals("ult") ? 1 : 0));
-			op("pULT", 1);
 			push(-2);
-			op((jumpIfTrue ? "pJUMP   " : "pJUMPN  ") + target, 3);
+			op((jumpIfTrue ? "pBRULT  " : "pBRUGE  ") + target, 3);
 			return;
 		}
 		if (e.kind == E_CALL) {
@@ -1406,6 +1404,14 @@ public class PcodeGen {
 			if (!s.args.isEmpty())
 				fail(s.line, "EXEC_NATIVE takes no arguments");
 			op("pSYSCALL NX_EXECUTE", 3);
+			return;
+		}
+		if (n.equals("UNSTMT")) {
+			// The rebuild to infix, NX_UNSTMT in asm/elfin/unstmt.inc.s: what
+			// it reads and writes are registers, so there is nothing to pass.
+			if (!s.args.isEmpty())
+				fail(s.line, "UNSTMT takes no arguments");
+			op("pSYSCALL NX_UNSTMT", 3);
 			return;
 		}
 		if (n.equals("PUTC")) {

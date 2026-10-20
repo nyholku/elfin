@@ -500,6 +500,22 @@ public class TestExec {
 				{ "FOO(1,2)", "DEF FOO(X)", " PRINT X" }, // arity
 				{ "PRINT NOSUCH()" }, // no such subroutine
 				{ "PRINT D(2000)", "DEF D(N)", " IF N<1", "  RETURN 0", " RETURN D(N-1)" }, // stack
+				// a call inside a store's target: its statements run expressions
+				// of their own, and the target must still come out an address
+				{ "DIM A[3]", "A[F(1)]=5", "PRINT A[0],A[1],A[2]", "DEF F(X)", " Y=X", " RETURN Y" }, //
+				{ "DIM A[3]", "DIM B[3]", "B[1]=2", "A[B[F(1)]]=9", "PRINT A[2]", "DEF F(X)", " RETURN X" }, //
+				// RETURN from deep inside blocks, and a value from it
+				{ "PRINT F(5)", "DEF F(N)", " I=0", " WHILE 1", "  IF I==N", "   WHILE 1", "    RETURN I*10",
+						"  I=I+1" }, //
+				// a call's value is stored when an assignment follows it: only a
+				// call that is the whole statement drops it
+				{ "A=F(65)", "PRINT A", "F(1)", "B=F(2)+1", "PRINT B", "DEF F(X)", " RETURN X+1" }, //
+				{ "A=PUTCH(65)", "PUTCH(66)", "PRINT A", "DEF PUTCH(C) $000D" }, //
+				// call statements leave nothing behind: long enough loops would
+				// run the stack out if they did
+				{ "I=0", "WHILE I<3000", " F(I)", " I=I+1", "PRINT I", "DEF F(X)", " RETURN X" }, //
+				{ "I=0", "WHILE I<3000", " G()", " I=I+1", "PRINT I", "DEF G()", " J=1" }, //
+				{ "I=0", "WHILE I<3000", " KEYHIT()", " I=I+1", "PRINT I", "DEF KEYHIT() $0011" }, //
 		};
 		int bad = 0;
 		for (String[] prog : progs)

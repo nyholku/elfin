@@ -14,16 +14,18 @@ Mini's 1854 on the Mini's ports.
 
 From the project root, alongside the other runners:
 
-    ./run-emma.sh src/elfin/eightqueens.txt 1400
+    ./run-emma.sh src/elfin/eightqueens.txt
 
-The default clock is the Elf's 1.76 MHz, so that run is 21 real minutes -
-which is what eight queens costs on the hardware, and Emma paces it honestly.
-Pass a third argument to raise the clock when you only want the answer:
-`240 100` finishes in four.
+runs it until you quit Emma; then what its terminal saw is printed and diffed
+against the reference.  The default clock is the Elf's 1.76 MHz, so eight
+queens takes 21 real minutes - which is what it costs on the hardware, and
+Emma paces it honestly.  A third argument raises the clock when you only want
+the answer: `- 100` finishes in about four.
 
-The seconds argument has to outlast the program.  A hold that is too short is
-not an error: Emma is quit mid-run, and what it had printed by then is diffed
-against the reference and reported as a mismatch.
+A second argument, the seconds, quits Emma for you after that long, which is
+how a script runs it: `240 100`.  The hold has to outlast the program.  One
+that is too short is not an error: Emma is quit mid-run, and what it had
+printed by then is diffed against the reference and reported as a mismatch.
 
 What comes up depends on how it is run.  A diffed run - no `KEEP` - comes up
 running the program: `EmmaImage` points the entry jump at the executor, and

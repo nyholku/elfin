@@ -247,6 +247,21 @@ pBRNE8    MACRO VARIABLE,VALUE,ADDR
           DB    hi(ADDR)
           ENDM
 
+; An unsigned comparison and the branch on it, in one: what ULT and BRNZ or
+; BRZ were.  a and b are on the stack as ULT has them; the handler is
+; NXEV_BRU, which ends in NXEV_JUMP or NXEV_NOBR like a BRNZ would.
+pBRULT    MACRO ADDR
+          DB    059h            ; branch if a < b, unsigned
+          DB    lo(ADDR)
+          DB    hi(ADDR)
+          ENDM
+
+pBRUGE    MACRO ADDR
+          DB    05Ah            ; branch if a >= b, unsigned
+          DB    lo(ADDR)
+          DB    hi(ADDR)
+          ENDM
+
 pGOTO     MACRO ADDR
           DB    066h            ; JUMP
           DB    lo(ADDR)
