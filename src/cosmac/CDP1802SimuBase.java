@@ -58,6 +58,16 @@ public abstract class CDP1802SimuBase extends CDP1802State implements Cloneable 
 	/** Instructions executed since the last reset of this counter. */
 	public long m_Instructions;
 
+	/**
+	 * An invariant on one register's high byte, checked each time the program
+	 * counter reaches m_CheckPc: the executor keeps its dispatch table's page in
+	 * R9.1 and the loop jumps through it unchecked, so a path that leaves R9.1
+	 * changed crashes somewhere else entirely. This says where instead - the
+	 * last instruction that wrote that byte. -1 turns it off.
+	 */
+	public int m_CheckPc = -1, m_CheckReg, m_CheckHi;
+	private int m_CheckLastWrite = -1;
+
 	/** Optional per-address instruction counts, for profiling. */
 	public int[] m_AddrCount;
 
@@ -206,12 +216,19 @@ public abstract class CDP1802SimuBase extends CDP1802State implements Cloneable 
 
 					oldState = cloneState();
 				}
+				int checkWas = R[1][m_CheckReg];
+				if (pcNow == m_CheckPc && checkWas != m_CheckHi)
+					throw new IllegalStateException(String.format(
+							"R%X.1 is %02X, not %02X, at %04X; last written by the instruction at %04X", m_CheckReg,
+							checkWas, m_CheckHi, pcNow, m_CheckLastWrite));
 				inc(P, +1);
 				m_Coverage[opcode]++;
 				m_Instructions++;
 				if (m_AddrCount != null)
 					m_AddrCount[pcNow]++;
 				execOpcode(opcode);
+				if (R[1][m_CheckReg] != checkWas)
+					m_CheckLastWrite = pcNow;
 				if (VERBOSE) {
 					printState();
 					printDiff("", "", oldState, VERBOSE);

@@ -86,6 +86,9 @@ public class Pcode {
 		varPage = need("VAR_PAGE");
 		coldAt = need("COLD_AT");
 		coldEnd = need("COLD_END");
+		simu.m_CheckPc = need("NXEV_LOOP"); // R9.1 is the dispatch table's page there: see NXR9
+		simu.m_CheckReg = 9;
+		simu.m_CheckHi = need("NXTAB") >> 8;
 
 		byte[] image;
 		try {

@@ -610,6 +610,22 @@ POPR      MACRO REG
           PHI   REG
           ENDM
 
+; NXR9 - put the dispatch table's page back in R9.1.
+;
+; While a program runs, R9.1 is hi(NXTAB) and nothing else, so the loop does
+; not have to load the page on every token: two instructions out of twelve,
+; on the one path everything goes through.  R9.0 is the loop's to overwrite.
+; What still writes R9.1 is all off that path, and puts it back with this:
+; the multiply and divide in mul16_h.inc, machine code - a SYSCALL, a native
+; DEF, a terminal driver - which may use R9 as it always could, and the call
+; machinery, which keeps the subroutine record in R9 while it sets a call up.
+; PEEK, POKE, RD16 and WR16 used R9 too, and they are on the path, so the
+; executor has its own copies of them on RE and RF; the VM keeps its own.
+NXR9      MACRO
+          LDI   hi(NXTAB)
+          PHI   R9
+          ENDM
+
 ; NXENTER target - park the VM's registers, stand ours up, and go.
 NXENTER   MACRO TARGET
           ST16  NX_SAVER2,R2
@@ -832,6 +848,7 @@ NXA_4
           SMI   039h            ; T_MUL
           BNZ   NXA_5
           CALLH MUL16_H         ; the machine's own multiply
+          NXR9                  ; which used R9
           NXRET
 NXA_5
           GLO   RC
@@ -842,6 +859,7 @@ NXK3
           GLO   RC
           BNZ   NXA_DIVBAD
           CALLH DIV16_H         ; and its own signed divide
+          NXR9
           NXRET
 NXA_6
           GLO   RC
@@ -852,6 +870,7 @@ NXK4
           GLO   RC
           BNZ   NXA_DIVBAD
           CALLH MOD16_H         ; and its remainder
+          NXR9
           NXRET
 
 NXA_DIVBAD
@@ -904,6 +923,10 @@ NXA_CMP
           FBZ   NXC_LE
           GLO   RD
           SMI   035h            ; T_GE
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBZ   NXC_GE
           LDI   NXE_INTERNAL
           PLO   RC
@@ -1102,12 +1125,11 @@ NXEV_LOOP
           SHL                   ; that wants it reads it again.  DF = bit 7,
                                 ; and D = 2*t
           BDF   NXEV_REF        ; 0x80..0xFF: a variable
-          PLO   RE              ; 2*t IS the offset, the table being aligned
-          LDI   hi(NXTAB)
-          PHI   RE
-          LDA   RE              ; big-endian, as DW writes it
+          PLO   R9              ; 2*t IS the offset, the table being aligned,
+                                ; and R9.1 is always its page - see NXR9
+          LDA   R9              ; big-endian, as DW writes it
           PHI   R6
-          LDN   RE
+          LDN   R9
           PLO   R6
           SEP   R6              ; the handler runs on R6
           BR    NXEV_LOOP       ; where its SEP R3 lands
@@ -1334,7 +1356,7 @@ NXEV_AMP
 
 NXEV_DIM                        ; A.DIM - the element count out of the header
           INC   R7
-          CALLH RD16_H
+          CALLH NX_RD16
           POPR  RA              ; the header counts bytes ...
           INC   RA              ; ... so the elements are half of it,
           GHI   RA              ; rounded up
@@ -1457,22 +1479,71 @@ NXEV_SHR
           INC   R7
           SEX   R8
           R6JMP SHR_H
+; PEEK, POKE, RD16 and WR16 are the VM's, done here on RE and RF instead of
+; R9 and RA, because R9.1 is the dispatch table's page (see NXR9).  They have
+; no branches, so they need no page of their own.  NX_RD16 and NX_WR16 are
+; also what R3 code here CALLHs, with RE and RF free, as everywhere.
 NXEV_PEEK
           INC   R7
           SEX   R8
-          R6JMP PEEK
+          LDA   R8              ; the address
+          PLO   RF
+          LDN   R8
+          PHI   RF
+          LDI   0               ; the result's high byte, into the address's
+          STXD
+          LDN   RF
+          STR   R8              ; and its low byte
+          SEX   R2
+          NXDONE6
 NXEV_POKE
           INC   R7
           SEX   R8
-          R6JMP POKE
+          LDA   R8              ; the value's low byte; its high one is not
+          PLO   RE              ; looked at
+          IRX
+          LDA   R8              ; the address
+          PLO   RF
+          LDA   R8
+          PHI   RF
+          GLO   RE
+          STR   RF
+          SEX   R2
+          NXDONE6
 NXEV_RD16
           INC   R7
-          SEX   R8
-          R6JMP RD16_H
+NX_RD16                         ; the address on the stack, the word in its place
+          LDA   R8
+          PLO   RF
+          LDN   R8
+          PHI   RF
+          INC   RF              ; high byte
+          LDN   RF
+          STR   R8
+          DEC   RF              ; low byte
+          DEC   R8
+          LDN   RF
+          STR   R8
+          SEX   R2
+          NXDONE6
 NXEV_WR16
           INC   R7
-          SEX   R8
-          R6JMP WR16_H
+NX_WR16                         ; the value on top, the address under it
+          LDA   R8
+          PLO   RE
+          LDA   R8
+          PHI   RE
+          LDA   R8
+          PLO   RF
+          LDA   R8
+          PHI   RF
+          GLO   RE
+          STR   RF
+          INC   RF
+          GHI   RE
+          STR   RF
+          SEX   R2
+          NXDONE6
 
 ; PULL <ref> - store the value on the stack into that cell.
 ; PULLA       - store it at the address the expression that follows works out.
@@ -1543,7 +1614,7 @@ NXKP1
           STR   RE
           POP2  RD
           PUSHR RD
-          CALLH WR16_H          ; every element is a word
+          CALLH NX_WR16          ; every element is a word
           NXDONEF
 
 NXEV_PUSHA                      ; the cell's address, not its value
@@ -1863,6 +1934,7 @@ NXEV_SYSGO
           SEX   R8
           SEP   R9
           SEX   R2
+          NXR9                  ; it ran on R9
           NXDONEF
 
 NXEV_BAD
@@ -2041,7 +2113,7 @@ NXK16
 NX_ELEM_GET
           NXCALLF NX_ELEM_ADDR,NXK17
 NXK17
-          CALLH RD16_H          ; every element is a word
+          CALLH NX_RD16          ; every element is a word
           NXRET
 
 ; Negate the 16-bit top of stack.
@@ -2178,6 +2250,7 @@ NX_PUTC
           GLO   RC
           SEP   RF              ; D in, back with SEP R3
           SEX   R2              ; it may have moved X
+          NXR9                  ; and used R9
           NXRET
 
 ; Push the 16-bit constant in RD, having built it from a byte.
@@ -2231,6 +2304,7 @@ NXPI_DIG
           CALLH SHR_H
           NXPUSH8 5
           CALLH DIV16_H
+          NXR9
           POPR  RD
           ST16  NX_PQ,RD
 
@@ -2240,6 +2314,7 @@ NXPI_DIG
           PUSHR RD
           NXPUSH8 10
           CALLH MUL16_H
+          NXR9
           CALLH SUB16_H
           POPR  RD
 
@@ -2478,7 +2553,7 @@ NXK49
           GHI   RC
           STR   RE
           PUSHR RD              ; and the cell points at it
-          CALLH WR16_H
+          CALLH NX_WR16
           NXCALLF NX_SKIP_REST,NXK50
 NXK50
 NXED_OUT
@@ -2980,6 +3055,7 @@ NXDC_NATBACK
           SEX   R2              ; a native DEF may leave X anywhere - INSTALL
                                 ; and SUM6 end with SEX R8, from when that was
                                 ; this interpreter's convention
+          NXR9                  ; and R9 is scratch to it, as it always was
           INC   R2              ; drop the arguments
           LDN   R2
           PLO   RC
@@ -3190,6 +3266,7 @@ NXDC_ENTER                      ; the caller's context, onto the system stack
           PLO   R7
           LDN   R9
           PHI   R7              ; the body
+          NXR9                  ; done with the record
 
           NXCALLF NX_RUN_LINES,NXK88
 NXK88
@@ -3281,6 +3358,7 @@ NXIS_NO
 NX_EXECUTE
           NXENTER NXEX_GO
 NXEX_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LD16  R8,NX_HEAPLO_AT ; operands and frames grow down from here
           LD16  RA,NX_GAPLO_AT  ; the stack floor, for NX_PUSHV to test against
           GLO   RA
@@ -3357,6 +3435,7 @@ NXSTART3
           PLO   R4              ; SubsetLint forbids them - so its frame
           PHI   R4              ; pointer is zero until a program runs
           LDRI  R5,NX_RETN
+          NXR9                  ; the dispatch table's page, from here on
           LDI   hi(VAR_PAGE)
           PHI   RD
           LDI   lo(VAR_PAGE)
@@ -3399,6 +3478,7 @@ NXTW_SAVED SET $
 NX_TAPPLY
           NXENTER NXTA_GO
 NXTA_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK      ; a runtime stack of its own
           LD16  RC,NX_T0
           PUSHR RC
@@ -3415,6 +3495,7 @@ NXK90
 NX_TEVAL
           NXENTER NXTE_GO
 NXTE_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK
           LD16  RD,NX_GCELLS_AT ; the window drives the loop directly
           ST16  NX_GBASE,RD
@@ -3437,6 +3518,7 @@ NXK91
 NX_TVARADDR
           NXENTER NXTV_GO
 NXTV_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK
           LD16  RD,NX_GCELLS_AT ; the window drives the loop directly
           ST16  NX_GBASE,RD
@@ -3456,6 +3538,7 @@ NXK92
 NX_TELEM
           NXENTER NXTL_GO
 NXTL_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK
           LD16  RD,NX_GCELLS_AT ; the window drives the loop directly
           ST16  NX_GBASE,RD
@@ -3482,6 +3565,7 @@ NXK93
 NX_TRUN
           NXENTER NXTR_GO
 NXTR_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK
           LD16  RD,NX_GCELLS_AT ; the window drives the loop directly
           ST16  NX_GBASE,RD
@@ -3505,6 +3589,7 @@ NXKR1
 NX_SELFTEST
           NXENTER NXST_GO
 NXST_GO
+          NXR9                  ; here, on R3: NXENTER runs on R9, as a SYSCALL does
           LDRI  R8,NX_TSTK
           LDI   0
           PHI   RD

@@ -80,19 +80,20 @@ Ctrl-R runs before every run, is counted separately.
 ## Results
 
 ElFin as of this branch (executor after the call, INDEX and statement-layer
-work, and `&` and `|` with their own handlers). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf. ElFin runs
+work, `&` and `|` with their own handlers, and the dispatch table's page
+kept in R9). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf. ElFin runs
 almost no 3-cycle instructions, so its cycles are its instructions × 2.
 
 | | Tiny BASIC | ElFin | Tiny BASIC ÷ ElFin |
 |---|---|---|---|
-| setup and first board | 105.9M cycles (8 min 1 s) | 1.44M (6.5 s) | 74× |
-| depth 1: search, move, board | 329.3M (24 min 57 s) | 7.81M (35 s) | 42× |
-| depth 2: search, move, board | 6,429.7M (8 h 7 min) | 150.9M (11 min 26 s) | 43× |
-| **whole run, depth 2** | **6,535.6M (8 h 15 min)** | **152.3M (11 min 32 s)** | **43×** |
+| setup and first board | 105.9M cycles (8 min 1 s) | 1.41M (6.4 s) | 75× |
+| depth 1: search, move, board | 329.3M (24 min 57 s) | 7.52M (34 s) | 44× |
+| depth 2: search, move, board | 6,429.7M (8 h 7 min) | 145.3M (11 min 1 s) | 44× |
+| **whole run, depth 2** | **6,535.6M (8 h 15 min)** | **146.8M (11 min 7 s)** | **45×** |
 | ElFin's compile before the run | none | 11.1M (50 s) | |
 
 Instructions for the whole run, for the record: at depth 2, 3,240.8M for
-Tiny BASIC and 76.2M for ElFin; at depth 1, 215.8M and 4.62M.
+Tiny BASIC and 73.4M for ElFin; at depth 1, 215.8M and 4.47M.
 
 Every number in this table comes from the simulator, not from Emma. The 1802
 has no wait states and no cache, and every instruction takes a fixed 2 or 3
@@ -103,11 +104,12 @@ would steal.
 
 The setup row shows the language more than the engine. It's 300 or so POKEs
 and loops that every GOTO reaches by scanning the program from the top. The
-search is the fair comparison, and it's 42–43×.
+search is the fair comparison, and it's 44×.
 
 Before the programs were rewritten without multiply and divide, the search
 was 30×: 336.8M cycles for Tiny BASIC at depth 1 and 11.1M for ElFin. After
-the rewrite, and before `&` and `|` got their own handlers, it was 38×.
+the rewrite, and before `&` and `|` got their own handlers, it was 38×; then
+42–43× until the dispatch loop stopped reloading the table's page.
 
 ## On Emma 02
 
