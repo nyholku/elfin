@@ -42,7 +42,7 @@ Throw away the redundant colon wart and strip the language to bare minimum and w
 
 ### A could have been language
 
-[^1]: (The original name was NotPy but that is so not 1978, ElFin instead is kind of word play that I could have come up back then bein a Fin and the connection Elf and elfin in English meaning small, delicate, a bit magical. Or in Spanis 'the end', signalling that it is the last language you need.)
+[^1]: (The original name was NotPy but that is so not 1978, ElFin instead is kind of word play that I could have come up back then myself being a Finn and the connection Elf and elfin in English meaning small, delicate, a bit magical. Or in Spanis 'the end', signalling that it is the last language you need.)
 
 My main goal in designing ElFin was to have the execution speed of a compiled language with the interactive nature and speed of an interpreted language in a kind of imaginary 1980 hardware with no disc storage and limited memory.
 
@@ -76,7 +76,7 @@ One sub goal I had in mind that ElFin should make it possible to write CHIP8 lik
 
 This is a compiled language which is the *raison d'etre* for it.
 
-Compilation happens while you edit the code, it is not a separate step.
+Compilation (mostly) happens while you edit the code, it is not a separate step.
 
 All access to local and global variables is via offsets/address computed at compile time. 
  
@@ -84,7 +84,9 @@ All control structures use pre computed branch instruction under the hood.
 
 There is no name look up for symbols (variables, function names, keywords) at run time.
 
-The language supports recursion and local variables with long names.
+The language supports recursion and local variables (and globals of course).
+
+Variable and function names can be long with no space or speed penalty.
 
 The block structure of the code is based on indentation not unlike in Python.
 
@@ -140,8 +142,8 @@ The thinking behind this decision was that I don't want to burden the language i
 The on screen editor obviously needs some I/O and this effected by built in hooks on the zero page and you can utilise them like this:
 
 ```
-OUTS("HELLO WORLD!")
-DEF OUTS(S[]) $0017
+OUTSTRING("HELLO WORLD!")
+DEF OUTSTRING(S[]) $0017
 ```
 
 For more complex examples see the chess program source code. To see how to embed machine language and the CDP1861 video interrupt see the gunner source code.
@@ -162,7 +164,7 @@ See [Getting Started](GETTING-STARTED.md)
 
 ### Future plans
 
-As it is today ElFin is kind of slow though it is an order of magnitude (x 30) faster than Tiny BASIC.
+As it is today ElFin is kind of slow though it is an order of magnitude (x 50) faster than Tiny BASIC.
 
 I'd be happier if it was enpar with CHIP8 for similar tasks and if it could fit in 16 kB RAM.
 
