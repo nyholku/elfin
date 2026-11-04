@@ -59,11 +59,13 @@ public class SubsetLint {
 			// and a hand written reversal, three of which move a block of lines
 			"MEMREV",
 			// and a hand written walk over one line's tokens
-			"LINEEND",
+			"LINEEND", "STMTEND",
 			// and the storage hook, through page 0 to whatever driver is there
 			"STORAGE",
 			// and the rebuild of a statement to infix, hand written too
-			"UNSTMT"));
+			"UNSTMT",
+			// and the detokenizer's output, asm/elfin/dput.inc.s
+			"DPUTN", "DPUTL", "DPUTKW", "DPUTSYM", "DECOUT", "TERMDEC", "HEXOUT"));
 
 	static final int GLOBAL_BUDGET = 64; // VAR_PAGE holds 64 words (PCODE.md)
 	static final int COLD_BASE = ElFin.COLD_AT; // main.s has the same

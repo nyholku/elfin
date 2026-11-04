@@ -467,6 +467,10 @@ STORIO                  ; STORAGE(OP, C): page 0's storage hook
 ; instructions a line.  Past the header, every item by the skip table
 ; (as NX_SKIP_ITEM), then the comment or tail block if there is one.
 ;
+; NX_STMTEND is the same walk without the last step: where the statement
+; ends, which is what the detokenizer's DETOK_PRESCAN looks for on every line
+; it paints, and did item by item in p-code at a sixth of a repaint.
+;
 ; Entered with SEP R9 and X on R8, as a SYSCALL is, and left the same way;
 ; the address on the stack is replaced by the answer.  It sits here, after
 ; the generated code and before the jump table, because the executor's own
@@ -477,7 +481,13 @@ STORIO                  ; STORAGE(OP, C): page 0's storage hook
 ; past 4200, and the jump table after it was moved up to make room.
 ; ---------------------------------------------------------------------------
           ALIGN 256
+NX_STMTEND                      ; the same walk, stopping at the block
+          LDI   1
+          BR    NXLE_GO
 NX_LINEEND
+          LDI   0
+NXLE_GO
+          PLO   RE              ; nonzero: leave the block where it is
           LDA   R8
           PLO   RC
           LDN   R8
@@ -550,6 +560,8 @@ NXLE_1
           INC   RC
           BR    NXLE_TOK
 NXLE_EOL
+          GLO   RE
+          BNZ   NXLE_DONE       ; NX_STMTEND: this is the answer
           LDN   RC
           SMI   00Eh
           BNF   NXLE_DONE       ; a header, or the end: no block to skip
@@ -862,6 +874,7 @@ TAB_TOP:
 ; ---------------------------------------------------------------------------
         ORG   CODE_TOP
         INCLUDE "unstmt.inc.s"
+        INCLUDE "dput.inc.s"     ; the detokenizer's output, the same way
 
 UNSTMT_TOP:
         IF $ > JMPTBL_BASE

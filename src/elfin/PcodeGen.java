@@ -339,6 +339,8 @@ public class PcodeGen {
 			pr.line = line;
 			while (!at(")")) {
 				ident(); // parameter type
+				if (eat("[")) // a table, which only a hand written routine takes
+					expect("]");
 				pr.params.add(ident());
 				eat(",");
 			}
@@ -692,8 +694,24 @@ public class PcodeGen {
 	// is inlined FROM ITS OWN SOURCE, so editing isDigit() in ElFin.java
 	// changes the generated code with no change here.
 	static final Set<String> NATIVE = new HashSet<String>(
-			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND",
-					"STORAGE", "UNSTMT"));
+			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND", "STMTEND",
+					"STORAGE", "UNSTMT",
+					"dput", "DPUTN", "DPUTL", "DPUTKW", "DPUTSYM", "DECOUT", "TERMDEC", "HEXOUT"));
+
+	// The detokenizer's output routines, asm/elfin/dput.inc.s: each a SYSCALL
+	// that takes its arguments off the data stack, first pushed first.  A
+	// table argument is pushed as the table's address.
+	static final Map<String, String> DPUT_CALLS = new HashMap<String, String>();
+	static {
+		DPUT_CALLS.put("dput", "NX_DPUT");
+		DPUT_CALLS.put("DPUTN", "NX_DPUTN");
+		DPUT_CALLS.put("DPUTL", "NX_DPUTL");
+		DPUT_CALLS.put("DPUTKW", "NX_DPUTKW");
+		DPUT_CALLS.put("DPUTSYM", "NX_DPUTSYM");
+		DPUT_CALLS.put("DECOUT", "NX_DECOUT"); // and the mode, DMODE
+		DPUT_CALLS.put("TERMDEC", "NX_DECOUT"); // and the mode, D_TERM
+		DPUT_CALLS.put("HEXOUT", "NX_HEXOUT");
+	}
 
 	// The notice every source file carries, and so the code generated from one.
 	static final String[] LICENSE_NOTICE = { "ElFin - a programming language for the CDP1802",
@@ -746,6 +764,23 @@ public class PcodeGen {
 
 	static boolean isSimple(Expr e) {
 		return e.kind == E_NUM || (e.kind == E_VAR && (globals.contains(e.op) || consts.containsKey(e.op)));
+	}
+
+	// k when e is the constant 2^k with k in 0..8, else -1.  Above 2^8 the
+	// shifts would start to cost what the multiply does.
+	static int log2Const(Expr e) {
+		e = strip(e);
+		long v;
+		if (e.kind == E_NUM)
+			v = e.num;
+		else if (e.kind == E_VAR && consts.containsKey(e.op))
+			v = consts.get(e.op);
+		else
+			return -1;
+		for (int k = 0; k <= 8; k++)
+			if (v == 1L << k)
+				return k;
+		return -1;
 	}
 
 	static boolean isNum(Expr e, long v) {
@@ -1004,6 +1039,19 @@ public class PcodeGen {
 			}
 			break;
 		case E_BIN:
+			if (e.op.equals("*")) {
+				// A power of two is a shift.  The machine's multiply is a sixteen
+				// round loop with the signs taken off and put back, ~400
+				// instructions; a shift is one opcode, and the product is the
+				// same modulo 2^16 whatever the signs.
+				int ka = log2Const(e.a), kb = log2Const(e.b);
+				if (ka >= 0 || kb >= 0) {
+					genValue(kb >= 0 ? e.a : e.b);
+					for (int i = 0, k = kb >= 0 ? kb : ka; i < k; i++)
+						op("pSHL", 1);
+					return;
+				}
+			}
 			if (ARITH.containsKey(e.op)) {
 				genValue(e.a);
 				genValue(e.b);
@@ -1081,10 +1129,11 @@ public class PcodeGen {
 			push(-1);
 			return;
 		}
-		if (n.equals("LINEEND")) {
-			// the address on the stack is replaced by the next line's
+		if (n.equals("LINEEND") || n.equals("STMTEND")) {
+			// the address on the stack is replaced by the next line's, or by
+			// where this line's statement ends
 			genValue(e.args.get(0));
-			op("pSYSCALL NX_LINEEND", 3);
+			op("pSYSCALL NX_" + n, 3);
 			return;
 		}
 		if (NATIVE.contains(n))
@@ -1412,6 +1461,29 @@ public class PcodeGen {
 			if (!s.args.isEmpty())
 				fail(s.line, "UNSTMT takes no arguments");
 			op("pSYSCALL NX_UNSTMT", 3);
+			return;
+		}
+		if (DPUT_CALLS.containsKey(n)) {
+			if (s.args.size() != pr.params.size())
+				fail(s.line, n + " takes " + pr.params.size() + " arguments");
+			for (int i = 0; i < s.args.size(); i++) {
+				Expr a = strip(s.args.get(i));
+				if (a.kind == E_VAR && tables.containsKey(a.op)) {
+					op("pLIT16  " + VARPFX + a.op, 3);
+					push(1);
+				} else
+					genValue(a);
+			}
+			if (n.equals("DPUTL")) { // the entry's address, not the table's
+				op("pADD", 1);
+				push(-1);
+			}
+			if (n.equals("DECOUT")) { // one routine for both: say where to
+				loadVar("DMODE");
+			} else if (n.equals("TERMDEC"))
+				literal(2, s.line); // D_TERM
+			op("pSYSCALL " + DPUT_CALLS.get(n), 3);
+			push(n.equals("DPUTL") ? -1 : -s.args.size() - (n.equals("DECOUT") || n.equals("TERMDEC") ? 1 : 0));
 			return;
 		}
 		if (n.equals("PUTC")) {

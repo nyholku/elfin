@@ -346,7 +346,6 @@ public class ElFin {
 	static int DSTP; // write pointer for the detokenizer
 	static int DMODE; // where dput sends characters
 	static int DEND; // the bound DSTP must not cross
-	static int DCHAR; // the character being put
 	static int TAILP; // cursor into the tail payload
 	static int TAILE; // end of the tail payload
 	static int GAPNO; // gap number being rendered
@@ -2277,6 +2276,16 @@ public class ElFin {
 	// walk, for the reference: past the header, every item, then the comment
 	// or tail block.  Neither side touches TOKEN.
 	static int LINEEND(int at) {
+		int p = STMTEND(at);
+		if (M[p] >= T_COMMENT) // the comment or tail block
+			p = (p + 2 + M[(p + 1) & 0xFFFF]) & 0xFFFF;
+		return p;
+	}
+
+	// STMTEND: the same walk, stopping where the statement does - on the
+	// comment or tail block, or the next header.  The same machine code
+	// as LINEEND, by its other entry.
+	static int STMTEND(int at) {
 		int p = (at + 1) & 0xFFFF;
 		while (M[p] > T_EOL_HI) {
 			int t = M[p];
@@ -2298,8 +2307,6 @@ public class ElFin {
 				p += 3 + (((M[(p + 1) & 0xFFFF] | (M[(p + 2) & 0xFFFF] << 8)) + 1) & 0xFFFE); // padded
 			p &= 0xFFFF;
 		}
-		if (M[p] >= T_COMMENT) // the comment or tail block
-			p = (p + 2 + M[(p + 1) & 0xFFFF]) & 0xFFFF;
 		return p;
 	}
 
@@ -2550,33 +2557,18 @@ public class ElFin {
 		PUTC(0x5B); // ESC [
 	}
 
-	// TERM_NUM: ENUM as decimal, no leading zeros.  Screen coordinates only, so
-	// three digits are enough and the value is far below the range where the
-	// machine's signed divide would bite.
+	// TERM_NUM: ENUM as decimal, no leading zeros, to the terminal whatever
+	// DMODE says.
 	static void TERM_NUM() {
-		if (!ult(ENUM, 100)) {
-			PUTC(0x30 + ENUM / 100);
-			ENUM = ENUM % 100;
-			PUTC(0x30 + ENUM / 10);
-			PUTC(0x30 + ENUM % 10);
-			return;
-		}
-		if (!ult(ENUM, 10)) {
-			PUTC(0x30 + ENUM / 10);
-			PUTC(0x30 + ENUM % 10);
-			return;
-		}
-		PUTC(0x30 + ENUM);
+		TERMDEC(ENUM);
 	}
 
 	// TERM_GOTO: put the cursor at row EGR, column EGC, both counted from zero.
 	static void TERM_GOTO() {
 		TERM_ESC();
-		ENUM = m16(EGR + 1);
-		TERM_NUM();
+		TERMDEC(m16(EGR + 1));
 		PUTC(0x3B); // ;
-		ENUM = m16(EGC + 1);
-		TERM_NUM();
+		TERMDEC(m16(EGC + 1));
 		PUTC(0x48); // H
 	}
 
@@ -3596,24 +3588,22 @@ public class ElFin {
 	static final int D_TERM = 2; // straight to the terminal, no buffer at all
 	static final int D_STORE = 3; // to storage, a byte at a time
 
-	// dput: one character to the detokenizer's destination.
-	//
-	// The parameter is copied into DCHAR and the work done in DPUT, so that the
-	// p-code translation evaluates the argument once and calls a subroutine -
-	// inlining the whole body at each of the twenty one call sites would cost
-	// far more than the call.
-	static void dput(int c) {
-		DCHAR = c;
-		DPUT();
-	}
+	// The detokenizer's output.  These are SYSCALLs to hand written code,
+	// asm/elfin/dput.inc.s: in p-code a character cost a call, a test of DMODE
+	// and a return, a hundred and thirty instructions, and the loops that fed
+	// it twice that again - a repaint was a fifth putting characters out.
+	// The bodies here are what the machine code does, for the Java side; the
+	// registers they name are what tells the allocator the machine code
+	// touches them.
 
-	static void DPUT() {
+	// dput: one character to the detokenizer's destination.
+	static void dput(int c) {
 		if (DMODE == D_TERM) {
-			PUTC(DCHAR);
+			PUTC(c);
 			return;
 		}
 		if (DMODE == D_STORE) {
-			if (ugt(STORAGE(S_PUT, DCHAR), 0xFF))
+			if (ugt(STORAGE(S_PUT, c), 0xFF))
 				ERR = E_IO;
 			return;
 		}
@@ -3625,7 +3615,7 @@ public class ElFin {
 				ERR = E_LINE_TOO_LONG;
 				return;
 			}
-			wr8(DSTP, DCHAR);
+			wr8(DSTP, c);
 			DSTP = m16(DSTP - 1);
 			return;
 		}
@@ -3633,8 +3623,71 @@ public class ElFin {
 			ERR = E_LINE_TOO_LONG;
 			return;
 		}
-		wr8(DSTP, DCHAR);
+		wr8(DSTP, c);
 		DSTP = m16(DSTP + 1);
+	}
+
+	// DPUTN: the n bytes at a, each as dput.
+	static void DPUTN(int a, int n) {
+		for (int i = 0; i < (n & 0xFFFF); i++)
+			dput(M[(a + i) & 0xFFFF]);
+	}
+
+	// DPUTL: the entry at t[k] of a table of <len> <chars..> entries.
+	static void DPUTL(int[] t, int k) {
+		for (int i = 0; i < t[k]; i++)
+			dput(t[k + 1 + i]);
+	}
+
+	// DPUTKW: the spelling of keyword tok, from a table of <len> <token>
+	// <chars..> entries ended by a zero length.
+	static void DPUTKW(int[] t, int tok) {
+		for (int k = 0; t[k] != 0; k += 2 + t[k])
+			if (t[k + 1] == tok) {
+				for (int i = 0; i < t[k]; i++)
+					dput(t[k + 2 + i]);
+				return;
+			}
+	}
+
+	// DPUTSYM: a symbol's characters from a, the last one with bit 7 set.
+	static void DPUTSYM(int a) {
+		while (true) {
+			int ch = M[a & 0xFFFF];
+			dput(ch & 0x7F);
+			if ((ch & 0x80) != 0)
+				return;
+			a++;
+		}
+	}
+
+	// DECOUT: v as unsigned decimal, no leading zeros, as dput.
+	static void DECOUT(int v) {
+		v &= 0xFFFF;
+		int p = 10000;
+		while (p > 1 && v < p)
+			p /= 10;
+		for (; p > 0; p /= 10)
+			dput(0x30 + v / p % 10);
+	}
+
+	// TERMDEC: the same to the terminal, whatever DMODE says - the same
+	// machine code, told D_TERM.  Kept apart so that the cursor addressing,
+	// which every phase does, does not look to the allocator as if it used
+	// the detokenizer's registers.
+	static void TERMDEC(int v) {
+		v &= 0xFFFF;
+		int p = 10000;
+		while (p > 1 && v < p)
+			p /= 10;
+		for (; p > 0; p /= 10)
+			PUTC(0x30 + v / p % 10);
+	}
+
+	// HEXOUT: the low n hex digits of v, most significant first.
+	static void HEXOUT(int v, int n) {
+		for (int i = n - 1; i >= 0; i--)
+			dput("0123456789ABCDEF".charAt((v >> (4 * i)) & 0x0F));
 	}
 
 	// PUT_SPACES: emit NSPOUT spaces.
@@ -3652,96 +3705,11 @@ public class ElFin {
 		RN = rd16(PC + 1);
 	}
 
-	// DEC_OUT: render TOKVAL as decimal.
-	//   IN: TOKVAL   CLOBBERS: T1, T2, T3
-	static void DEC_OUT() {
-		if (TOKVAL == 0) {
-			dput(0x30);
-			return;
-		}
-		T1 = 0;
-		T2 = TOKVAL;
-		while (T2 != 0) { // NOERR
-			// Divide by ten UNSIGNED.  The machine's divide takes the absolute
-			// value of each operand and puts the sign back afterwards, so a
-			// value above 0x7FFF is read as negative there and 65535 / 10 comes
-			// out as 0.  Halving first brings it into range, and
-			// floor(floor(n/2)/5) is exactly floor(n/10); the remainder then
-			// comes back by multiplying out, which wraps to the right answer.
-			T3 = (T2 >> 1) / 5;
-			wr8(NUMBUF + T1, 0x30 + m16(T2 - 10 * T3));
-			T2 = T3;
-			T1 = T1 + 1;
-		}
-		while (T1 != 0) { // NOERR
-			T1 = T1 - 1;
-			dput(rd8(NUMBUF + T1));
-		}
-	}
-
-	// HEX_OUT: render TOKLEN hex digits of TOKVAL, most significant first.
-	//   IN: TOKVAL, TOKLEN   CLOBBERS: T1, T2, T3
-	static void HEX_OUT() {
-		T1 = TOKLEN;
-		while (T1 != 0) { // NOERR
-			T1 = T1 - 1;
-			// Shift a copy down four bits at a time rather than by a computed
-			// amount.  The machine shifts one place per instruction and has no
-			// variable shift, so >> (4 * T1) would be this loop with the loop
-			// hidden; written out, what it costs is visible.
-			T3 = TOKVAL;
-			T2 = T1;
-			while (T2 != 0) { // NOERR
-				T3 = T3 >> 4;
-				T2 = T2 - 1;
-			}
-			T2 = T3 & 0x0F;
-			if (T2 < 10)
-				dput(0x30 + T2);
-			else
-				dput(0x41 + T2 - 10);
-		}
-	}
-
 	// SYM_OUT: render the characters of symbol SYM.
-	//   IN: SYM   CLOBBERS: SYMPTR, T1
+	//   IN: SYM   CLOBBERS: SYMPTR
 	static void SYM_OUT() {
 		SYM_CHARS();
-		T1 = SYMPTR;
-		while (true) { // NOERR
-			dput(rd8(T1) & 0x7F);
-			if ((rd8(T1) & 0x80) != 0)
-				return;
-			T1 = T1 + 1;
-		}
-	}
-
-	// KW_OUT: render the keyword whose token is TOKEN.
-	//   IN: TOKEN   CLOBBERS: KWP, T1
-	static void KW_OUT() {
-		KWP = 0;
-		while (KWTAB[KWP] != 0) { // NOERR
-			if (KWTAB[KWP + 1] == TOKEN) {
-				T1 = 0;
-				while (T1 < KWTAB[KWP]) { // NOERR
-					dput(KWTAB[KWP + 2 + T1]);
-					T1 = T1 + 1;
-				}
-				return;
-			}
-			KWP = KWP + 2 + KWTAB[KWP];
-		}
-	}
-
-	// OP_OUT: render the operator whose token is TOKEN.
-	//   IN: TOKEN   CLOBBERS: KWP, T1
-	static void OP_OUT() {
-		KWP = OPOFF[TOKEN - T_EQ];
-		T1 = 0;
-		while (T1 < OPTXT[KWP]) { // NOERR
-			dput(OPTXT[KWP + 1 + T1]);
-			T1 = T1 + 1;
-		}
+		DPUTSYM(SYMPTR);
 	}
 
 	// RENDER_ITEM: render the token at PC and advance PC past it.
@@ -3751,69 +3719,61 @@ public class ElFin {
 		TOKEN = rd8(PC);
 		LASTTOK = TOKEN;
 
-		if (TOKEN >= T_LIT_LO && TOKEN <= T_LIT_HI) {
-			TOKVAL = TOKEN & 0x0F;
-			DEC_OUT();
-			PC = m16(PC + 1);
-			return;
-		}
-		if (TOKEN >= T_DEF && TOKEN <= T_RETURN) {
-			KW_OUT();
-			PC = m16(PC + 1);
-			return;
-		}
-		if (TOKEN == T_IF || TOKEN == T_ELSE || TOKEN == T_WHILE) {
-			KW_OUT();
-			PC = m16(PC + 3);
-			return;
-		}
-		if (TOKEN >= T_EQ && TOKEN <= T_ASSIGN) {
-			OP_OUT();
-			PC = m16(PC + 1);
-			return;
-		}
-		if (TOKEN == T_INT8) {
-			TOKVAL = rd8(PC + 1);
-			DEC_OUT();
-			PC = m16(PC + 2);
-			return;
-		}
-		if (TOKEN == T_INT16) {
-			TOKVAL = rd16(PC + 1);
-			DEC_OUT();
-			PC = m16(PC + 3);
-			return;
-		}
-		if (TOKEN == T_HEX1 || TOKEN == T_HEX2) {
-			dput(0x24);
-			TOKVAL = rd8(PC + 1);
-			TOKLEN = TOKEN - T_HEX1 + 1;
-			HEX_OUT();
-			PC = m16(PC + 2);
-			return;
-		}
-		if (TOKEN == T_HEX3 || TOKEN == T_HEX4) {
-			dput(0x24);
-			TOKVAL = rd16(PC + 1);
-			TOKLEN = TOKEN - T_HEX3 + 3;
-			HEX_OUT();
-			PC = m16(PC + 3);
-			return;
-		}
+		// Commonest first, as a paint counts them: a name is one in three
+		// tokens and an operator more than that, and every test a token fails
+		// on its way down this chain is a compare and a branch.
 		if (TOKEN >= T_REF) {
 			SYM = TOKEN - T_REF;
 			SYM_OUT();
 			PC = m16(PC + 1);
 			return;
 		}
+		if (TOKEN >= T_EQ && TOKEN <= T_ASSIGN) {
+			DPUTL(OPTXT, OPOFF[TOKEN - T_EQ]);
+			PC = m16(PC + 1);
+			return;
+		}
+		if (TOKEN >= T_LIT_LO && TOKEN <= T_LIT_HI) {
+			DECOUT(TOKEN & 0x0F);
+			PC = m16(PC + 1);
+			return;
+		}
+		if (TOKEN >= T_DEF && TOKEN <= T_RETURN) {
+			DPUTKW(KWTAB, TOKEN);
+			PC = m16(PC + 1);
+			return;
+		}
+		if (TOKEN == T_IF || TOKEN == T_ELSE || TOKEN == T_WHILE) {
+			DPUTKW(KWTAB, TOKEN);
+			PC = m16(PC + 3);
+			return;
+		}
+		if (TOKEN == T_INT8) {
+			DECOUT(rd8(PC + 1));
+			PC = m16(PC + 2);
+			return;
+		}
+		if (TOKEN == T_INT16) {
+			DECOUT(rd16(PC + 1));
+			PC = m16(PC + 3);
+			return;
+		}
+		if (TOKEN == T_HEX1 || TOKEN == T_HEX2) {
+			dput(0x24);
+			HEXOUT(rd8(PC + 1), TOKEN - T_HEX1 + 1);
+			PC = m16(PC + 2);
+			return;
+		}
+		if (TOKEN == T_HEX3 || TOKEN == T_HEX4) {
+			dput(0x24);
+			HEXOUT(rd16(PC + 1), TOKEN - T_HEX3 + 3);
+			PC = m16(PC + 3);
+			return;
+		}
 		if (TOKEN == T_STR) {
 			LIT_BYTES();
 			dput(0x22);
-			RI = 0;
-			while (RI < RN) { // NOERR
-				dput(rd8(PC + 3 + RI));
-				RI = RI + 1;
-			}
+			DPUTN(m16(PC + 3), RN);
 			dput(0x22);
 			PC = m16(PC + 3 + (m16(RN + 1) & 0xFFFE)); // past the padding too
 			return;
@@ -3824,9 +3784,7 @@ public class ElFin {
 			dput(0x22);
 			RI = 0;
 			while (RI < RN) { // NOERR
-				TOKVAL = rd8(PC + 3 + RI);
-				TOKLEN = 2;
-				HEX_OUT(); // clobbers T1, T2 - hence RN / RI
+				HEXOUT(rd8(PC + 3 + RI), 2);
 				RI = RI + 1;
 			}
 			dput(0x22);
@@ -3835,11 +3793,7 @@ public class ElFin {
 		}
 		if (TOKEN == T_RAW) {
 			RN = rd8(PC + 1) - 1; // the length counts the errno byte
-			RI = 0;
-			while (RI < RN) { // NOERR
-				dput(rd8(PC + 3 + RI));
-				RI = RI + 1;
-			}
+			DPUTN(m16(PC + 3), RN);
 			PC = m16(PC + 3 + RN);
 			return;
 		}
@@ -3917,9 +3871,7 @@ public class ElFin {
 		CMTP = 0;
 		CMTLEN = 0;
 		PARENB = 0;
-		PC = m16(LSTART + 1);
-		while (rd8(PC) > T_EOL_HI) // NOERR
-			SKIP_ITEM();
+		PC = STMTEND(LSTART);
 		if (rd8(PC) == T_COMMENT) {
 			CMTLEN = rd8(PC + 1);
 			CMTP = m16(PC + 2);
@@ -3987,30 +3939,36 @@ public class ElFin {
 		UNSTMT();
 		wr8(OUTP, 0);
 
+		// Most lines have no tail at all, and most gaps are no space or one, so
+		// the calls are made only when there is something for them to do:
+		// TAIL_LOOK and PUT_SPACES cost more to call than to run.
 		GAPNO = 0;
-		TAIL_LOOK(); // gap 0 = leading spaces beyond the header
+		TLN = 0;
+		if (ult(TAILP, TAILE))
+			TAIL_LOOK(); // gap 0 = leading spaces beyond the header
 		NSPOUT = rd8(LSTART) + TLN;
-		PUT_SPACES();
+		if (NSPOUT != 0)
+			PUT_SPACES();
 
 		PC = TOKBUF + 1; // the rebuilt infix, not the store
 		while (rd8(PC) > T_EOL_HI) { // NOERR
 			RENDER_ITEM();
 			GAPNO = GAPNO + 1;
 			DETOK_CANON();
-			TAIL_LOOK();
-			if (TLFOUND != 0)
-				NSPOUT = TLN;
-			else
-				NSPOUT = CANON;
-			PUT_SPACES();
+			NSPOUT = CANON;
+			if (ult(TAILP, TAILE)) {
+				TAIL_LOOK();
+				if (TLFOUND != 0)
+					NSPOUT = TLN;
+			}
+			if (NSPOUT == 1)
+				dput(SPC);
+			else if (NSPOUT != 0)
+				PUT_SPACES();
 		}
 		if (CMTP != 0) {
 			dput(HASH);
-			T1 = 0;
-			while (T1 < CMTLEN) { // NOERR
-				dput(rd8(CMTP + T1));
-				T1 = T1 + 1;
-			}
+			DPUTN(CMTP, CMTLEN);
 		}
 		// advance to the next line, in the store
 		PC = DSTORE;
