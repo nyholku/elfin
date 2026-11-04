@@ -1050,6 +1050,11 @@ NXK10
 ; A target
 ; that is a plain variable never reaches the loop at all.
 ;
+; NX_LVAL is 1 only while a target is being worked out, and its one setter
+; clears it again (NXKP1); a call saves it, clears it for the callee and puts
+; it back.  So NX_EVAL itself has nothing to clear and IS the loop: the seven
+; instructions it spent writing the flag ran for every expression there is.
+;
 ;   in:  R7 on the first token.  RC.0 is ignored - it used to be the minimum
 ;        precedence to bind, and there is no precedence any more.
 ;   out: the value on the stack, R7 past the expression
@@ -1058,15 +1063,6 @@ NXK10
 ; the stack is balanced whatever happens and the caller never has to ask.
 ; ---------------------------------------------------------------------------
           KEEPIN 080h           ; the loop and the reads it branches to
-NX_EVAL
-          LDI   hi(NX_LVAL)     ; a one bit mode, written as one byte: the
-          PHI   RE              ; sixteen bit store cost fourteen instructions
-          LDI   lo(NX_LVAL)     ; on the entry to every expression there is
-          PLO   RE
-          LDI   0
-          STR   RE
-          NXDONE
-
 NX_EVAL_LV
           LDN   R7
           PLO   RC
@@ -1100,6 +1096,7 @@ NXEV_LVEXPR
 ; call: the return address is what the fetch hardware left in R3 when this
 ; loop executed the SEP R6, so neither direction touches a stack.  CALLH has
 ; always worked this way; the table only makes the entry point a datum.
+NX_EVAL
 NXEV_LOOP
           LDN   R7              ; the raw byte - R7 stays on it, and a handler
           SHL                   ; that wants it reads it again.  DF = bit 7,
@@ -1178,25 +1175,6 @@ NXRL_BYREF                      ; D = 8*slot, the reference bit shifted out
           PHI   RE
           BR    NXRL_VALUE
 
-; IGET's return: the element's address is on the stack, and the read is the
-; last thing before the loop, so it sits on the loop's page.  RD16_H's read,
-; in place: through CALLH it was twice the instructions, for the array read
-; eight queens makes three of in every turn of SAFE.
-NXKE7
-          LDA   R8              ; the address, and R8 on its high byte
-          PLO   RE
-          LDN   R8
-          PHI   RE
-          INC   RE              ; every element is a word
-          LDN   RE
-          STR   R8
-          DEC   RE
-          DEC   R8
-          LDN   RE
-          STR   R8
-          NXDONE
-
-
 ; The opcodes whose handlers are R3 code - each of them calls, and a call made
 ; from R6 would leave the callee running on the register CALLH reloads.  The
 ; table sends them here, and each goes back to R3 first.  This used to be one
@@ -1205,8 +1183,6 @@ NXKE7
 ; was left.
 NXD_CALL                        ; 0x20..0x2F: CALLn, and the keywords
           TOR3  NXEV_CALL
-NXD_INDEX                       ; 0x41
-          TOR3  NXEV_INDEX
 NXD_PULLA                       ; 0x42
           TOR3  NXEV_PULLA
 NXD_DIM                         ; 0x46
@@ -1517,6 +1493,12 @@ NXEV_PULLA
           PUSH2 RD
           NXCALLF NX_EVAL_LV,NXKP1
 NXKP1
+          LDI   hi(NX_LVAL)     ; the target is done: back to values
+          PHI   RE
+          LDI   lo(NX_LVAL)
+          PLO   RE
+          LDI   0
+          STR   RE
           POP2  RD
           PUSHR RD
           CALLH WR16_H          ; every element is a word
@@ -1896,20 +1878,65 @@ NXVA_GLOBAL                     ; the base's page, and 2*(token - T_SYM)
 
 ; INDEX - the element's value, or in an lvalue at the end of the target, its
 ; address.  Anything after it means this is not the target's last token.
+;
+; On R6 from start to finish, with the bounds check and the read in line: it
+; was a stub back to R3, a pushed return, NX_ELEM_ADDR, NX_RETN and a read
+; after it - about eighty instructions for the array read eight queens makes
+; three of in every turn of SAFE.  This is about forty.  The rare store target
+; goes the old way, to NX_ELEM_ADDR on R3, whose NXRET is the expression's
+; own return: the target's INDEX is its last token.
+          KEEPIN 040h           ; on R6: every branch has to reach
 NXEV_INDEX
           INC   R7
-          LDB   NX_LVAL
-          BZ    NXEV_IGET
           LDN   R7
           SMI   010h
-          BDF   NXEV_IGET
-          NXTAIL NX_ELEM_ADDR
-; Straight to NX_ELEM_ADDR and the read, rather than through NX_ELEM_GET,
-; which is that call and this read with a call and a return around them.  An
-; array read is two nested calls otherwise, and eight queens does three of
-; them in the inner loop of SAFE.  NX_ELEM_GET stays for the test window.
-NXEV_IGET
-          NXCALLI NX_ELEM_ADDR,NXKE7
+          BNF   NXIX_END        ; the expression ends here: maybe a target
+NXIX_GET
+          LDA   R8              ; the index, doubled: two bytes an element
+          SHL
+          PLO   RF
+          LDA   R8
+          SHLC
+          PHI   RF
+          BDF   NXIX_RANGE      ; an index past 7FFF is past any array
+          LDA   R8
+          PLO   RE
+          LDN   R8              ; R8 on the block's high byte, which is the
+          PHI   RE              ; slot the element takes.  RE = the block
+          LDA   RE              ; and 2*index must be below its size in bytes;
+          STR   R2              ; a negative index is a huge one, and fails
+          GLO   RF              ; the same test
+          SM
+          LDN   RE
+          STR   R2
+          GHI   RF
+          SMB
+          BDF   NXIX_RANGE      ; 2*index >= bytes
+          INC   RE              ; past the header word
+          GLO   RF
+          STR   R2
+          GLO   RE
+          ADD
+          PLO   RE
+          GHI   RF
+          STR   R2
+          GHI   RE
+          ADC
+          PHI   RE
+          INC   RE              ; the element's high byte
+          LDN   RE
+          STR   R8
+          DEC   RE
+          DEC   R8
+          LDN   RE
+          STR   R8
+          NXDONE6
+NXIX_END
+          LDB   NX_LVAL
+          BZ    NXIX_GET
+          TOR3  NX_ELEM_ADDR    ; its NXRET goes to whoever wanted the target
+NXIX_RANGE
+          TOR3  NXEA_RANGE
 
 ; NX_ELEM_ADDR - base and index on the stack, the element's address in their
 ; place.  Every element is a word: the byte arrays literals used to be are
@@ -2132,7 +2159,7 @@ NX_PRINT_INT
           BZ    NXPI_POS
           LDI   02Dh            ; '-'
           PLO   RC
-          NXCALLF NX_PUTC,NXK31
+          NXCALLI NX_PUTC,NXK31
 NXK31
           GLO   RD
           XRI   0FFh
@@ -2149,7 +2176,7 @@ NXPI_POS
           BNZ   NXPI_START
           LDI   030h            ; '0'
           PLO   RC
-          NXTAILF NX_PUTC
+          NXTAIL NX_PUTC
 NXPI_START
           ST16  NX_PV,RD
           LDI   0
@@ -2198,7 +2225,6 @@ NXPI_DIG
           LD16  RD,NX_PQ        ; v = q
           ST16  NX_PV,RD
           GLO   RD
-          SEX   R2              ; pad: a far branch off the page end
           FBNZ  NXPI_DIG
           GHI   RD
           FBNZ  NXPI_DIG
@@ -2230,7 +2256,7 @@ NXPI_EMIT
           PLO   RC
           NXCALLF NX_PUTC,NXK33
 NXK33
-          BR    NXPI_OUT
+          FBR   NXPI_OUT
 NXPI_DONE
           NXRET
 
@@ -2433,54 +2459,31 @@ NXED_OUT
 NX_RUN_LINES
 ; NX_STEP_LINE - execute one line.  R7 is on its header.
 NX_STEP_LINE
-          LDN   R7              ; still inside the program?  The byte R7 is on
+          LDA   R7              ; still inside the program?  The byte R7 is on
           XRI   NX_ENDMARK      ; answers it: the end marker is the one value
           FBZ   NXSL_OFFEND     ; that can stand where a header would and is
-                                ; not an indent, so there is nothing to
-                                ; compare and nothing to keep a register for.
-                                ;
-                                ; This was sixteen instructions when GAP_LO had
-                                ; to come out of memory and nine when it lived
-                                ; in R0, before the 1861 took R0 for its DMA
-                                ; pointer.  A high byte pre-test was tried on
-                                ; the old form too, as NX_PUSHV does: it won a
-                                ; per cent on eight queens, whose code spans
-                                ; pages, and lost two and a half on a short
-                                ; program.  None of that matters any more.
+                                ; not an indent.  R7 goes on to the first
+                                ; token in the same instruction.
 
-          INC   R7              ; a blank line, or one that is only a comment
-          LDN   R7
-          DEC   R7
-          SMI   010h
-          BDF   NXSL_LIVE
-          NXCALLF NX_SKIP_LINE,NXK51
-NXK51
-          BR    NX_RUN_LINES  ; the line loop, inlined
-
-; A line with something on it.  Run it - there is nothing else to decide.
+; A line with something on it, or a blank one.  Its first token says which.
 ;
 ; This is where the executor worked out which blocks the line had left, by
 ; comparing its indent against how deep it thought it was, and closed them one
 ; at a time.  The compiler writes those jumps into the program now, so a block
 ; end is an instruction like any other and the line layer keeps no state.
-NXSL_LIVE
+;
+; A statement is an expression unless it opens with a keyword, and it can
+; begin with any token at all - I=0 compiles to LIT 0, PULL, I - so there is
+; nothing to dispatch on.  A band test sends what starts with a variable
+; straight out with R7 still on it, and the next finds IF, ELSE and WHILE: the
+; lines a loop runs are mostly these.  A blank line, or one that is only a
+; comment, has a byte below 10h here, and is tested for among the rare ones.
 NXSL_BODY
-          INC   R7
           LDN   R7
-          PLO   RD              ; the statement's keyword
-          INC   R7
-
-          ; A statement is an expression unless it opens with a keyword, and
-          ; it can now begin with any token at all - I=0 compiles to
-          ; LIT 0, PULL, I - so there is nothing to dispatch on.  A band test
-          ; sends what starts with a variable straight out, and the next one
-          ; finds IF, ELSE and WHILE: the lines a loop runs are mostly these,
-          ; and they were tested last, after four other bands.
-          GLO   RD              ; a reference first: an assignment compiles to
-          SMI   066h            ; its value and then the target, and a value
-          BDF   NXSL_EXPR       ; usually starts with a variable
-          GLO   RD
-          SMI   063h            ; T_IF
+          PLO   RD              ; the statement's first token
+          SMI   066h
+          BDF   NXSL_EXPR       ; a reference, or 66h..7Fh
+          ADI   3               ; D = token - T_IF, DF = 1 for 63h..65h
           BNF   NXSL_LOW
           BZ    NXSL_COND
           SMI   1               ; T_ELSE
@@ -2488,15 +2491,23 @@ NXSL_BODY
           BR    NXSL_COND       ; T_WHILE, the only one left below 0x66
 NXSL_LOW
           GLO   RD
-          SMI   020h
-          BNF   NXSL_EXPR       ; below 0x20: a literal
+          SMI   010h
+          BNF   NXSL_BLANK      ; below 10h: the line is blank
+          SMI   010h
+          BNF   NXSL_EXPR       ; 10h..1Fh: a literal
           SMI   005h
           BDF   NXSL_EXPR       ; 0x25..0x62: calls, operators, literals
 NXSL_KW                         ; 0x20..0x24: DEF GLOBAL (0x22) DIM RETURN
+          INC   R7              ; past the keyword
           GLO   RD
           SMI   020h            ; T_DEF - the main program ends here
           BNZ   NXSL_TGLOBAL
           FBR   NXSL_STOP
+NXSL_BLANK
+          DEC   R7              ; back onto the header
+          NXCALLF NX_SKIP_LINE,NXK51
+NXK51
+          BR    NX_RUN_LINES  ; the line loop, inlined
 
 ; IF and WHILE are one instruction: a condition, and where to go when it is
 ; false.  What made them different was what happened at the END of the block,
@@ -2509,11 +2520,11 @@ NXSL_KW                         ; 0x20..0x24: DEF GLOBAL (0x22) DIM RETURN
 ; condition may be a call - IF SAFE(ROW,COL) - and the subroutine's own IFs
 ; would overwrite a cell while this one is still waiting for its answer.
 NXSL_COND
+          INC   R7              ; past the keyword
+          LDA   R7              ; where to go when it is false, straight
+          STXD                  ; from the line onto the stack
           LDA   R7
-          PLO   RA
-          LDA   R7
-          PHI   RA
-          PUSH2 RA              ; where to go when it is false
+          STXD
           NXCALLF NX_EVAL,NXK54
 NXK54
           LDA   R8              ; the condition off the stack, its two bytes
@@ -2521,11 +2532,12 @@ NXK54
           LDA   R8
           OR
           BNZ   NXSL_CONDT
-          POP2  RA
-          GLO   RA              ; false: past the block
-          PLO   R7
-          GHI   RA
+          INC   R2              ; false: past the block, straight off the
+          LDN   R2              ; stack into R7
           PHI   R7
+          INC   R2
+          LDN   R2
+          PLO   R7
           BR    NX_RUN_LINES  ; the line loop, inlined
 NXSL_CONDT
           INC   R2              ; true: the target is not wanted
@@ -2541,8 +2553,7 @@ NXSL_CONDT
 ; NXK88 and NXDC_NATBACK see NXSL_NEXT waiting under their own return, and
 ; the line ending, and know the call is a statement of its own.  R8 used to
 ; be saved here and put back afterwards to throw such a value away.
-NXSL_EXPR
-          DEC   R7              ; back onto the first token
+NXSL_EXPR                       ; R7 on the first token
           NXCALLF NX_EVAL,NXSL_NEXT
 NXSL_NEXT
           NEXTLNF NXNLA
@@ -2550,6 +2561,7 @@ NXSL_NEXT
 
 ; Reached only by falling into it: an IF whose body ran jumps over the line.
 NXSL_ELSE
+          INC   R7              ; past the keyword and its target
           INC   R7
           INC   R7
           NEXTLNF NXNL5
@@ -2575,37 +2587,28 @@ NXSL_TRETURN
           FBNZ  NXSL_BADTOK
           LDN   R7
           SMI   010h
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
           FBDF  NXSL_RETVAL
           LDI   0
           PLO   RD
           PHI   RD
           ST16  NX_RETVAL,RD
-          BR    NXSL_RETDONE
+          FBR   NXSL_RETDONE
 NXSL_RETVAL
           NXCALLF NX_EVAL,NXK68
 NXK68
           POPR  RD
           ST16  NX_RETVAL,RD
 NXSL_RETDONE
-          LD16  RA,NX_DEPTH
-          GLO   RA
-          BNZ   NXSL_RETF
-          GHI   RA
-          BNZ   NXSL_RETF
+          LDB   NX_CURREC+1     ; zero only at the top level: a record is
+          BNZ   NXSL_RETF       ; never in page 0
           BR    NXSL_STOP       ; a RETURN at the top level stops the program
 NXSL_RETF
           NXRET                 ; into NXK88: see NX_RUN_LINES
 
 
 NXSL_OFFEND                     ; ran off the end of the program
-          LD16  RA,NX_DEPTH
-          GLO   RA
-          BNZ   NXSL_RET0
-          GHI   RA
+          DEC   R7              ; back onto the end marker
+          LDB   NX_CURREC+1
           BNZ   NXSL_RET0
           BR    NXSL_STOP       ; the main program is over
 NXSL_RET0
@@ -2723,28 +2726,34 @@ NXDC_ROOM
           STR   R2
           DEC   R2              ; argc, over everything below
 
-          GLO   RA              ; SYMPTR = MEM_TOP - 4*(sym+1)
+          GLO   RA              ; SYMPTR = MEM_TOP - 4*(sym+1), in line:
+          ADI   1               ; through SUB16_H it was two pushes, a
+          SHL                   ; handler and a pop
           PLO   RC
           LDI   0
-          PHI   RC
-          INC   RC
+          SHLC
+          PHI   RC              ; 2*(sym+1)
           GLO   RC
           SHL
           PLO   RC
           GHI   RC
           SHLC
-          PHI   RC
+          PHI   RC              ; 4*(sym+1)
+          LDI   hi(NX_MEMTOP_AT)
+          PHI   RE
+          LDI   lo(NX_MEMTOP_AT)
+          PLO   RE
+          SEX   RE
           GLO   RC
-          SHL
-          PLO   RC
+          SD
+          PLO   RF
+          INC   RE
           GHI   RC
-          SHLC
-          PHI   RC
-          LD16  RD,NX_MEMTOP_AT
-          PUSHR RD
-          PUSHR RC
-          CALLH SUB16_H
-          POPR  RE              ; RE = the symbol's entry
+          SDB
+          PHI   RE
+          GLO   RF
+          PLO   RE              ; RE = the symbol's entry
+          SEX   R2
 
           INC   RE
           INC   RE
@@ -2761,31 +2770,37 @@ NXDC_ROOM
 NXK84
           FBR   NXDC_DROPZERO
 NXDC_ISSUB
-          LD16  RD,NX_SUBIDX_AT ; rec = SUBIDX[value]
+          LDI   hi(NX_SUBIDX_AT) ; R9 = SUBIDX[value], the subroutine record
+          PHI   RE
+          LDI   lo(NX_SUBIDX_AT)
+          PLO   RE
+          LDA   RE
+          PLO   RF
+          LDN   RE
+          PHI   RF
           GLO   RA
           SHL
-          PLO   RC
-          LDI   0
-          PHI   RC
-          PUSHR RD
-          PUSHR RC
-          CALLH ADD16_H
-          CALLH RD16_H
-          POPR  RC              ; the subroutine record
-          ST16  NX_T0,RC
-
-          GLO   RC              ; its flags
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          INC   RD
-          INC   RD
-          INC   RD
-          INC   RD
-          INC   RD              ; NXSR_FLAGS
-          LDN   RD
+          STR   R2
+          GLO   RF
+          ADD
+          PLO   RF
+          GHI   RF
+          ADCI  0
+          PHI   RF
+          LDA   RF
+          PLO   R9
+          LDN   RF
+          PHI   R9
+          GLO   R9              ; its flags
+          ADI   NXSR_FLAGS
+          PLO   RF
+          GHI   R9
+          ADCI  0
+          PHI   RF
+          LDN   RF
           ANI   NXF_ISNATIVE
           FBZ   NXDC_ElFin
+          ST16  NX_T0,R9        ; what the native path reads it from
 
 ; ---- a native DEF: machine code at an address the program gave -----------
           LD16  RC,NX_T0
@@ -2848,6 +2863,7 @@ NXDC_ISSUB
 ; OUTS and OUTI, page 0's VN_SYS..VN_SYSEND: run here, with the executor's own
 ; code for writing text and numbers.  Their arguments stay where the caller
 ; left them, as a native DEF's do, and NXDC_NATBACK drops them.
+          KEEPIN 050h           ; OUTS's loop runs once a character
 NXDC_SYSQ
           GLO   R6
           SMI   lo(VN_SYS)
@@ -2878,7 +2894,7 @@ NXDC_OS1
           NXCALLF NX_PUTC,NXKOS
 NXKOS
           DEC   RD
-          FBR   NXDC_OSL
+          BR    NXDC_OSL
 NXDC_OUTI                       ; OUTI(N): a copy of N, for PRINT_INT to take
           LDA   R8
           PLO   RD
@@ -2965,23 +2981,29 @@ NXDC_ZERO
           NXRET
 
 ; ---- a ElFin subroutine --------------------------------------------------
+;
+; R9 = the record, RF on its flags.  The caller's context goes onto the
+; system stack straight out of NX_FP, NX_CURREC and NX_ANEXT, which lie in
+; that order, and comes back the same way; the stack as it was before the
+; arguments is the callee's FP + 2, so it is not saved at all; and depth is
+; not counted, because NX_CURREC is zero exactly at the top level.  Through
+; LD16, ST16, scratch cells and a call per local this was some six hundred
+; instructions a call.
+          KEEPIN 0B0h           ; the frame's zeros are a loop
 NXDC_ElFin
-          LD16  RC,NX_T0
-          GLO   RC
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          INC   RD
-          INC   RD
-          LDA   RD
+          SEX   R2
+          DEC   RF
+          DEC   RF
+          DEC   RF              ; NXSR_NPARAMS
+          LDA   RF
           PLO   RC              ; RC.0 = nparams
-          LDN   RD
+          LDA   RF
           PHI   RC              ; RC.1 = nslots
+          LDN   RF
+          PLO   RD              ; RD.0 = the frame's array bytes
           INC   R2
-          LDN   R2
+          LDN   R2              ; argc, peeked
           DEC   R2
-          PLO   RF
-          GLO   RF
           STR   R2
           GLO   RC
           XOR
@@ -2989,153 +3011,187 @@ NXDC_ElFin
 
           GLO   RC              ; newFP = SP + 2*np - 2
           SHL
-          PLO   RD
-          LDI   0
-          PHI   RD
-          GLO   RD
           STR   R2
           GLO   R8
           ADD
           PLO   RA
-          GHI   RD
-          STR   R2
           GHI   R8
-          ADC
+          ADCI  0
           PHI   RA
           DEC   RA
           DEC   RA
-          ST16  NX_T1,RA        ; newFP
 
-          INC   R2              ; callerSP = SP + 2*argc: the stack as it was
-          LDN   R2              ; BEFORE the arguments, so that restoring it
-          DEC   R2              ; discards them along with the locals, the
-          SHL                   ; frame arrays and any block markers the body
-          PLO   RD              ; left behind - all in one assignment
-          LDI   0
-          PHI   RD
+          GLO   RC              ; bytes of zeros: 2*(nslots - np) for the
+          STR   R2              ; locals, and the frame's arrays
+          GHI   RC
+          SM
+          SHL
+          STR   R2
           GLO   RD
+          ADD
+          PLO   RD
+          LDI   0
+          ADCI  0
+          PHI   RD
+          BNZ   NXDC_ROOM2
+          GLO   RD
+          BZ    NXDC_ENTER      ; nothing to push
+NXDC_ROOM2                      ; R8 before the last push must not be below
+          GLO   RD              ; the floor, as NX_PUSHV has it
           STR   R2
           GLO   R8
-          ADD
+          SM
           PLO   RF
           GHI   RD
           STR   R2
           GHI   R8
-          ADC
+          SMB
           PHI   RF
-          ST16  NX_T2,RF        ; callerSP
-
+          INC   RF
+          INC   RF              ; RF = R8 before the last push
+          GLO   RB              ; the floor's high byte
+          STR   R2
+          GHI   RF
+          SM
+          BZ    NXDC_EXACT      ; same page: the cheap test cannot decide
+          BNF   NXDC_FULL
+NXDC_ZERO1
+          DEC   R8
+          LDI   0
+          STR   R8
+          DEC   RD
+          GLO   RD
+          BNZ   NXDC_ZERO1
+          GHI   RD
+          BNZ   NXDC_ZERO1
+          BR    NXDC_ENTER
+NXDC_EXACT
+          LDI   hi(NX_GAPLO_AT)
+          PHI   RE
+          LDI   lo(NX_GAPLO_AT)
+          PLO   RE
+          LDA   RE
+          ADI   65
+          PLO   RC
+          LDN   RE
+          ADCI  0
+          PHI   RC              ; RC = the floor
+          GLO   RC
+          STR   R2
+          GLO   RF
+          SM
           GHI   RC
           STR   R2
-          GLO   RC
-          SD                    ; nslots - np, both small and positive
-          PLO   RF
-NXDC_LOC
-          GLO   RF
-          BZ    NXDC_ARRS
-          LDI   0
-          PLO   RD
-          PHI   RD
-          NXCALLF NX_PUSHV,NXK86
-NXK86
-          DEC   RF
-          FBR   NXDC_LOC
-NXDC_ARRS
-          LD16  RC,NX_T0        ; and room for this frame's arrays
-          GLO   RC
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          INC   RD
-          INC   RD
-          INC   RD
-          INC   RD              ; NXSR_ARRBYTES
-          LDN   RD
-          PLO   RF
-NXDC_ARR
-          GLO   RF
-          BZ    NXDC_ENTER
-          LDI   0
-          PLO   RD
-          PHI   RD
-          NXCALLF NX_PUSHV,NXK87
-NXK87
-          DEC   RF
-          DEC   RF
-          BR    NXDC_ARR
+          GHI   RF
+          SMB
+          BDF   NXDC_ZERO1
+NXDC_FULL
+          LDI   NXE_STACK
+          PLO   RC
+          FBR   NX_THROW
 
 NXDC_ENTER                      ; the caller's context, onto the system stack
           LDB   NX_LVAL         ; whether the caller was working out a store's
-          STR   R2              ; target: the body's own expressions clear it,
-          DEC   R2              ; and A[F(1)]=5 then stored through the value
-                                ; of A[1] instead of at its address.  R2 by
-                                ; name, as PUSH2 does: X is not R2 here
-          PUSH2 R7
-          LD16  RD,NX_FP
-          PUSH2 RD
-          LD16  RD,NX_ANEXT     ; block depth and the IF flag used to be saved
-          PUSH2 RD              ; here too, and there is no such state now
-          LD16  RD,NX_CURREC
-          PUSH2 RD
-          LD16  RD,NX_T2
-          PUSH2 RD              ; callerSP
-
-          LD16  RD,NX_T1
-          SETFP RD
-          LD16  RD,NX_T0
-          ST16  NX_CURREC,RD
+          STXD                  ; target: A[F(1)]=5 stores through it after
+          LDI   0               ; the call.  The callee starts on values
+          STR   RE
+          GLO   R7
+          STXD
+          GHI   R7
+          STXD
+          LDI   hi(NX_ANEXT+1)
+          PHI   RE
+          LDI   lo(NX_ANEXT+1)
+          PLO   RE
+          LDN   RE              ; NX_ANEXT, NX_CURREC, NX_FP, top down
+          STXD
+          DEC   RE
+          LDN   RE
+          STXD
+          DEC   RE
+          LDN   RE
+          STXD
+          DEC   RE
+          LDN   RE
+          STXD
+          DEC   RE
+          LDN   RE
+          STXD
+          DEC   RE
+          LDN   RE
+          STXD                  ; RE on NX_FP
+          GLO   RA              ; and the callee's: FP
+          STR   RE
+          PLO   R4
+          INC   RE
+          GHI   RA
+          STR   RE
+          PHI   R4
+          INC   RE
+          GLO   R9              ; its record
+          STR   RE
+          INC   RE
+          GHI   R9
+          STR   RE
+          INC   RE
+          LDI   0               ; no frame arrays handed out yet
+          STR   RE
+          INC   RE
+          STR   RE
+          LDI   lo(NX_RETVAL)   ; and nothing returned
+          PLO   RE
           LDI   0
-          PLO   RD
-          PHI   RD
-          ST16  NX_ANEXT,RD
-          ST16  NX_RETVAL,RD
-          LDI   1
-          PLO   RD
-          LDI   0
-          PHI   RD
-          LD16  RC,NX_T0
-          GLO   RC
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          LDA   RD
+          STR   RE
+          INC   RE
+          STR   RE
+          LDA   R9
           PLO   R7
-          LDN   RD
+          LDN   R9
           PHI   R7              ; the body
-          LD16  RD,NX_DEPTH
-          INC   RD
-          ST16  NX_DEPTH,RD
 
           NXCALLF NX_RUN_LINES,NXK88
 NXK88
-
-          LD16  RD,NX_DEPTH
-          DEC   RD
-          ST16  NX_DEPTH,RD
-
-          POP2  RD              ; callerSP, and the rest of the context back
-          GLO   RD
-          PLO   R8
-          GHI   RD
-          PHI   R8              ; which discards arguments, locals and markers
-          POP2  RD
-          ST16  NX_CURREC,RD
-          POP2  RD
-          ST16  NX_ANEXT,RD
-          POP2  RD
-          SETFP RD
-          POP2  R7
-          INC   R2              ; and the caller's lvalue mode
-          LDN   R2
-          PLO   RD
-          LDI   hi(NX_LVAL)
+          GLO   R4              ; the stack as it was before the arguments,
+          ADI   2               ; which discards them with the locals, the
+          PLO   R8              ; frame arrays and any markers the body left
+          GHI   R4
+          ADCI  0
+          PHI   R8
+          SEX   R2
+          IRX
+          LDI   hi(NX_FP)
           PHI   RE
+          LDI   lo(NX_FP)
+          PLO   RE
+          LDXA                  ; NX_FP, NX_CURREC, NX_ANEXT back
+          STR   RE
+          PLO   R4
+          INC   RE
+          LDXA
+          STR   RE
+          PHI   R4
+          INC   RE
+          LDXA
+          STR   RE
+          INC   RE
+          LDXA
+          STR   RE
+          INC   RE
+          LDXA
+          STR   RE
+          INC   RE
+          LDXA
+          STR   RE
+          LDXA
+          PHI   R7
+          LDXA
+          PLO   R7
+          LDXA                  ; the caller's lvalue mode
+          PLO   RD
           LDI   lo(NX_LVAL)
           PLO   RE
           GLO   RD
-          STR   RE
-
-          INC   R2              ; argc, dropped
+          STR   RE              ; and R2 on argc, which is dropped
           NXCALLI NX_ISSTMT,NXK88S
 NXK88S
           BDF   NXK88X          ; F(X) on a line of its own: nothing wants it
@@ -3206,6 +3262,12 @@ NXEX_GO
           LDI   0
           STR   RE
           INC   RE
+          STR   RE
+          LDI   hi(NX_LVAL)     ; values, whatever a run that threw left
+          PHI   RE
+          LDI   lo(NX_LVAL)
+          PLO   RE
+          LDI   0
           STR   RE
           LD16  RD,NX_GCELLS_AT ; the 0xC0 band is the program's cells while it
           ST16  NX_GBASE,RD
