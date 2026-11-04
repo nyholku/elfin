@@ -694,9 +694,9 @@ public class PcodeGen {
 	// is inlined FROM ITS OWN SOURCE, so editing isDigit() in ElFin.java
 	// changes the generated code with no change here.
 	static final Set<String> NATIVE = new HashSet<String>(
-			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND", "STMTEND",
+			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND", "STMTEND", "SCANEOL",
 					"STORAGE", "UNSTMT",
-					"dput", "DPUTN", "DPUTL", "DPUTKW", "DPUTSYM", "DECOUT", "TERMDEC", "HEXOUT"));
+					"dput", "DPUTN", "DPUTL", "DPUTKW", "DPUTSYM", "DECOUT", "TERMDEC", "HEXOUT", "PUTR"));
 
 	// The detokenizer's output routines, asm/elfin/dput.inc.s: each a SYSCALL
 	// that takes its arguments off the data stack, first pushed first.  A
@@ -711,6 +711,7 @@ public class PcodeGen {
 		DPUT_CALLS.put("DECOUT", "NX_DECOUT"); // and the mode, DMODE
 		DPUT_CALLS.put("TERMDEC", "NX_DECOUT"); // and the mode, D_TERM
 		DPUT_CALLS.put("HEXOUT", "NX_HEXOUT");
+		DPUT_CALLS.put("PUTR", "NX_PUTR");
 	}
 
 	// The notice every source file carries, and so the code generated from one.
@@ -1129,7 +1130,7 @@ public class PcodeGen {
 			push(-1);
 			return;
 		}
-		if (n.equals("LINEEND") || n.equals("STMTEND")) {
+		if (n.equals("LINEEND") || n.equals("STMTEND") || n.equals("SCANEOL")) {
 			// the address on the stack is replaced by the next line's, or by
 			// where this line's statement ends
 			genValue(e.args.get(0));

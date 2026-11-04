@@ -1619,16 +1619,26 @@ public class ElFin {
 			return;
 		SRC = SRC + 1;
 		CMTP = SRC;
-		CMTLEN = 0;
-		while (rd8(SRC) != EOL && rd8(SRC) != 0) { // NOERR
-			SRC = SRC + 1;
-			CMTLEN = CMTLEN + 1;
-		}
+		SRC = SCANEOL(SRC);
+		CMTLEN = m16(SRC - CMTP);
 	}
 
 	// TAIL_EMIT: write the whitespace / comment block, if the line needs one.
 	//   IN:       TAILN, TAILBUF, CMTP, CMTLEN, TOKNO
 	//   CLOBBERS: OUTP, T1
+	// EMIT_COPY: the T3 bytes at T2, as that many emit()s would put them -
+	// as many as fit, and E_LINE_TOO_LONG if that is not all of them.
+	//   IN: T2, T3   CLOBBERS: T1, T3
+	static void EMIT_COPY() {
+		T1 = m16(TOKBUF_END - OUTP); // the room left
+		if (ult(T1, T3)) {
+			T3 = T1;
+			ERR = E_LINE_TOO_LONG;
+		}
+		MEMMOVE(OUTP, T2, T3);
+		OUTP = m16(OUTP + T3);
+	}
+
 	static void TAIL_EMIT() {
 		if (TAILN == 0 && CMTP == 0)
 			return;
@@ -1639,11 +1649,9 @@ public class ElFin {
 			}
 			emit(T_COMMENT);
 			emit(CMTLEN);
-			T1 = 0;
-			while (T1 < CMTLEN) { // NOERR
-				emit(rd8(CMTP + T1));
-				T1 = T1 + 1;
-			}
+			T2 = CMTP;
+			T3 = CMTLEN;
+			EMIT_COPY();
 			return;
 		}
 		T1 = TAILN;
@@ -1655,18 +1663,14 @@ public class ElFin {
 		}
 		emit(T_TAIL);
 		emit(T1);
-		T1 = 0;
-		while (T1 < TAILN) { // NOERR
-			emit(rd8(TAILBUF + T1));
-			T1 = T1 + 1;
-		}
+		T2 = TAILBUF;
+		T3 = TAILN;
+		EMIT_COPY();
 		if (CMTP != 0) {
 			emit(0xFF);
-			T1 = 0;
-			while (T1 < CMTLEN) { // NOERR
-				emit(rd8(CMTP + T1));
-				T1 = T1 + 1;
-			}
+			T2 = CMTP;
+			T3 = CMTLEN;
+			EMIT_COPY();
 		}
 	}
 
@@ -2077,24 +2081,19 @@ public class ElFin {
 			return;
 		T1 = ERR;
 		SRC = LINESTART;
-		T2 = 0;
-		while (rd8(SRC + T2) != EOL && rd8(SRC + T2) != 0) // NOERR
-			T2 = T2 + 1;
-		if (T2 > 253) { // cannot be kept verbatim behind a one byte length
+		T3 = m16(SCANEOL(SRC) - SRC);
+		if (T3 > 253) { // cannot be kept verbatim behind a one byte length
 			ERR = E_LINE_TOO_LONG;
 			return;
 		}
 		OUTP = TOKBUF;
 		emit(0); // header: RAW lines carry their own leading spaces
 		emit(T_RAW);
-		emit(T2 + 1); // length counts the errno byte
+		emit(T3 + 1); // length counts the errno byte
 		emit(T1);
-		T3 = 0;
-		while (T3 < T2) { // NOERR
-			emit(rd8(SRC + T3));
-			T3 = T3 + 1;
-		}
-		SRC = SRC + T2;
+		T2 = SRC;
+		SRC = SRC + T3;
+		EMIT_COPY();
 		if (ERR == E_LINE_TOO_LONG)
 			return; // leave it set: the line cannot be stored at all
 		ERR = 0;
@@ -2211,11 +2210,7 @@ public class ElFin {
 		GAP_NEED();
 		if (ERR != 0)
 			return;
-		T2 = 0;
-		while (T2 < T3) { // NOERR
-			wr8(GAP_LO + T2, rd8(TOKBUF + T2));
-			T2 = T2 + 1;
-		}
+		MEMMOVE(GAP_LO, TOKBUF, T3);
 		GAP_LO = m16(GAP_LO + T3);
 		GAP_MARK();
 		wr8(CODE_END, T_ENDMARK); // end of program marker
@@ -2282,6 +2277,14 @@ public class ElFin {
 		return p;
 	}
 
+	// SCANEOL: the first byte at or after a that ends a line of clear text,
+	// EOL or 0.  A SYSCALL to NX_SCANEOL, beside NX_LINEEND.
+	static int SCANEOL(int a) {
+		while (M[a & 0xFFFF] != EOL && M[a & 0xFFFF] != 0)
+			a++;
+		return a & 0xFFFF;
+	}
+
 	// STMTEND: the same walk, stopping where the statement does - on the
 	// comment or tail block, or the next header.  The same machine code
 	// as LINEEND, by its other entry.
@@ -2336,19 +2339,45 @@ public class ElFin {
 	static int EDISC; // COLD
 	static int EJLEN; // the length to put back if a join will not fit
 
+	// ED_ROOM: make the gap as wide as an edit needs.
+	//
+	// With slack, while memory is plentiful: a gap only just wide enough is
+	// too narrow again as soon as a line comes back a byte longer than it went
+	// out, and then everything above it moves - seven kilobytes, half a
+	// second, for the first key on every line.  The room is free memory either
+	// way, and it is the symbol table's only when memory is short.  GAP_NEED
+	// itself stays exact: the block keys work out where things went from it.
+	//   OUT: ERR   CLOBBERS: T1, T2, T3
+	static final int GAP_SLACK = 512;
+
+	static void ED_ROOM() {
+		T3 = m16(MAX_LINE + MAX_LINE + 8);
+		if (ult(m16(GAP_HI - GAP_LO), T3) && ult(m16(T3 + GAP_SLACK), m16(SYM_CHR - CODE_END) >> 1))
+			T3 = m16(T3 + GAP_SLACK);
+		GAP_NEED();
+	}
+
 	// ED_START: unpack the line at ECURL into the top of the gap.
 	//   IN:  ECURL   OUT: EDIRTY, ELEN, ECURL == GAP_HI
 	static void ED_START() {
 		if (EDIRTY != 0)
 			return;
-		T1 = ECURL;
-		GAP_MOVE();
 		// Room for the clear text, its terminator, and the tokens it will turn
 		// back into.  All of it is reserved HERE so that nothing during the edit
 		// has to widen the gap: widening slides the code above it up, and the
 		// line being edited sits just below that and would be left behind.
-		T3 = m16(MAX_LINE + MAX_LINE + 8);
-		GAP_NEED();
+		//
+		// A gap at the very end - after a load, a run, a save - is widened
+		// before it is moved, where widening slides nothing: moving it first
+		// and widening it after carried everything below the line twice.
+		if (GAP_HI == CODE_END) {
+			ED_ROOM();
+			if (ERR != 0)
+				return;
+		}
+		T1 = ECURL;
+		GAP_MOVE();
+		ED_ROOM();
 		if (ERR != 0)
 			return;
 		ECURL = GAP_HI; // GAP_NEED may have slid the upper half up
@@ -2376,15 +2405,7 @@ public class ElFin {
 			return;
 		// Turn the buffer round: it was built backwards so that it could grow,
 		// and the tokenizer reads forwards.
-		T1 = m16(GAP_HI - 1 - ELEN);
-		T2 = m16(GAP_HI - 2);
-		while (ult(T1, T2)) { // NOERR
-			T3 = rd8(T1);
-			wr8(T1, rd8(T2));
-			wr8(T2, T3);
-			T1 = m16(T1 + 1);
-			T2 = m16(T2 - 1);
-		}
+		MEMREV(m16(GAP_HI - 1 - ELEN), ELEN);
 		SRC = m16(GAP_HI - 1 - ELEN);
 		TOKENIZE_LINE_OR_RAW();
 		if (ERR != 0)
@@ -2451,15 +2472,7 @@ public class ElFin {
 		if (ugt(ECCOL, ELEN))
 			ECCOL = ELEN; // the cursor can sit out past the end of the line
 		// Turn round just the left part; the terminator is already above it.
-		T1 = m16(GAP_HI - 1 - ECCOL);
-		T2 = m16(GAP_HI - 2);
-		while (ult(T1, T2)) { // NOERR
-			T3 = rd8(T1);
-			wr8(T1, rd8(T2));
-			wr8(T2, T3);
-			T1 = m16(T1 + 1);
-			T2 = m16(T2 - 1);
-		}
+		MEMREV(m16(GAP_HI - 1 - ECCOL), ECCOL);
 		SRC = m16(GAP_HI - 1 - ECCOL);
 		TOKENIZE_LINE_OR_RAW();
 		if (ERR != 0)
@@ -2651,11 +2664,7 @@ public class ElFin {
 	// ED_PAINT_EDIT: the line being edited, which is in the gap and not in the
 	// store, so it cannot be detokenized - it is already clear text, backwards.
 	static void ED_PAINT_EDIT() {
-		T1 = 0;
-		while (T1 < ELEN) { // NOERR
-			PUTC(rd8(m16(GAP_HI - 2 - T1)));
-			T1 = T1 + 1;
-		}
+		PUTR(m16(GAP_HI - 2), ELEN);
 		TERM_EOL();
 	}
 
@@ -2813,6 +2822,19 @@ public class ElFin {
 	}
 
 	static void ED_DOWN() {
+		// The common case first: a line after the cursor's, and a row to put
+		// it on.  That line is one step from ECURL, where counting the visible
+		// lines and then ED_CURLINE walked the screen twice - a cost that grew
+		// with every row the cursor went down.
+		if (ult(m16(ECROW + 1), EROWS) && ult(ECURL, CODE_END)) {
+			PC = ECURL;
+			ED_STEP();
+			if (ult(PC, CODE_END)) {
+				ECROW = ECROW + 1;
+				ECURL = PC;
+				return;
+			}
+		}
 		ED_VISIBLE(); // T2 = visible lines, PC = the line after them
 		T3 = PC;
 		// Choosing where a block goes, the row past the last line counts as a
@@ -2854,11 +2876,11 @@ public class ElFin {
 			wr8(m16(GAP_HI - 2 - ELEN), SPC);
 			ELEN = ELEN + 1;
 		}
-		T1 = ELEN;
-		while (ugt(T1, ECCOL)) { // NOERR   shift the tail down one place
-			wr8(m16(GAP_HI - 2 - T1), rd8(m16(GAP_HI - 1 - T1)));
-			T1 = T1 - 1;
-		}
+		// Shift the tail down one place.  Character j is at GAP_HI-2-j, so
+		// that is the bytes from the end of the line to the cursor, moved to
+		// the address below each.
+		if (ugt(ELEN, ECCOL))
+			MEMMOVE(m16(GAP_HI - 2 - ELEN), m16(GAP_HI - 1 - ELEN), m16(ELEN - ECCOL));
 		wr8(m16(GAP_HI - 2 - ECCOL), ECHAR);
 		ELEN = ELEN + 1;
 		// The cursor sticks at the last column, so further characters are
@@ -2874,11 +2896,9 @@ public class ElFin {
 	//   The tail moves UP one place, which is towards GAP_HI, because the line
 	//   is stored backwards.
 	static void ED_DELETE_AT() {
-		T1 = T3;
-		while (ult(m16(T1 + 1), ELEN)) { // NOERR
-			wr8(m16(GAP_HI - 2 - T1), rd8(m16(GAP_HI - 3 - T1)));
-			T1 = T1 + 1;
-		}
+		// Characters T3+1.. move up one place, onto the one deleted.
+		if (ult(m16(T3 + 1), ELEN))
+			MEMMOVE(m16(GAP_HI - ELEN), m16(GAP_HI - 1 - ELEN), m16(ELEN - 1 - T3));
 		ELEN = ELEN - 1;
 		EMOD = 1;
 		ELRD = 1;
@@ -3625,6 +3645,13 @@ public class ElFin {
 		}
 		wr8(DSTP, c);
 		DSTP = m16(DSTP + 1);
+	}
+
+	// PUTR: n bytes to the terminal, from a downwards - the line being
+	// edited, which is held backwards.
+	static void PUTR(int a, int n) {
+		for (int i = 0; i < (n & 0xFFFF); i++)
+			PUTC(M[(a - i) & 0xFFFF]);
 	}
 
 	// DPUTN: the n bytes at a, each as dput.

@@ -33,6 +33,8 @@
 ;   DECOUT(v)        NX_DECOUT   decimal, with DMODE pushed after v
 ;   TERMDEC(v)       NX_DECOUT   the same with D_TERM pushed instead
 ;   HEXOUT(v, n)     NX_HEXOUT   the low n hex digits
+;   PUTR(a, n)       NX_PUTR     n bytes from a DOWNWARDS, to the terminal:
+;                                the line being edited, held backwards
 ;
 ; All of them come down to one loop, DP_RUN: RD bytes from RA, each ANDed
 ; with RC.1 and sent where RC.0 says - DMODE's values: 0 up into a buffer,
@@ -58,6 +60,7 @@ DP_ELONG  EQU  15               ; E_LINE_TOO_LONG
 ; guards at the end say when they no longer match.
 DPA_SIZE  EQU  0EBh
 DPB_SIZE  EQU  0DDh
+DPC_SIZE  EQU  043h
 
 DP_R3     EQU  VAR_PAGE+0C0h    ; the SYSCALL's return, while R3 is lent out
 DP_BUF    EQU  VAR_PAGE+0C2h    ; a character, or up to five digits, to C7
@@ -475,6 +478,67 @@ DPD_TAB   DB    lo(10000), hi(10000), lo(1000), hi(1000), 100, 0, 10, 0
 DPD_END
 DPB_END
 
+; ---- the edited line, backwards to the terminal: a loop of its own ----------
+
+          KEEPIN DPC_SIZE
+DPC_START
+
+NX_PUTR                         ; PUTR(a, n): n on top
+          LDA   R8
+          PLO   RD
+          LDA   R8
+          PHI   RD
+          LDA   R8
+          PLO   RA
+          LDA   R8
+          PHI   RA
+          LDI   hi(DP_R3)
+          PHI   RE
+          LDI   lo(DP_R3)
+          PLO   RE
+          GLO   R3
+          STR   RE
+          INC   RE
+          GHI   R3
+          STR   RE
+          LDI   hi(DPR_BACK)
+          PHI   R3
+          LDI   lo(DPR_BACK)
+          PLO   R3
+DPR_L
+          GLO   RD
+          BNZ   DPR_ONE
+          GHI   RD
+          BZ    DPR_DONE
+DPR_ONE
+          DEC   RD
+          LDN   RA
+          DEC   RA
+          PLO   RE
+          LDVEC VPUTC
+          SEX   R2
+          GLO   RE
+          SEP   RF
+          BR    DPR_L
+DPR_DONE
+          LDI   hi(DP_R3)
+          PHI   RE
+          LDI   lo(DP_R3)
+          PLO   RE
+          LDA   RE
+          PLO   R3
+          LDN   RE
+          PHI   R3
+          SEX   R8
+          SEP   R3
+DPR_BACK                        ; as DP_BACK
+          SEP   R9
+          BR    DPR_BACK
+DPC_END
+
+        IF DPC_END-DPC_START > DPC_SIZE
+          FATAL "dput.inc.s: PUTR has outgrown DPC_SIZE"
+        ENDIF
         IF DPA_END-DPA_START > DPA_SIZE
           FATAL "dput.inc.s: the loop's page has outgrown DPA_SIZE"
         ENDIF

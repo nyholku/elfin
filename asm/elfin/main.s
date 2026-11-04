@@ -583,6 +583,7 @@ NXLE_EOL
           PHI   RC
           SEX   R8
 NXLE_DONE
+NXSE_DONE
           GLO   RC
           STR   R8
           INC   R8
@@ -590,6 +591,24 @@ NXLE_DONE
           STR   R8
           DEC   R8              ; the answer, where the line was
           SEP   R3
+
+; NX_SCANEOL - the first EOL or 0 at or after the address on the stack,
+; which it replaces.  The tokenizer's scan for the end of a comment, and of a
+; line kept verbatim, a byte at a time in p-code before.
+NX_SCANEOL
+          LDA   R8
+          PLO   RC
+          LDN   R8
+          PHI   RC
+          DEC   R8
+NXSE_L
+          LDA   RC
+          BZ    NXSE_HIT        ; 0
+          XRI   0Ah
+          BNZ   NXSE_L          ; not EOL
+NXSE_HIT
+          DEC   RC              ; back onto it
+          BR    NXSE_DONE
 
 CODE_TOP:
         IF $ > JMPTBL_BASE
