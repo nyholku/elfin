@@ -232,11 +232,11 @@ as compiled
                   hdr0  "HI!"                 PULL  S:g0
 650A  D=$"CAFE"   00    7D 02 00 CA FE  47    C1
                   hdr0  $"CAFE"         PULL  D:g1
-6512  OUTS("X=")  00    7C 02 00 58 3D  26 82
+6512  OUTS("X=")  00    7C 02 00 58 3D  26 00
                   hdr0  "X="            CALL1 OUTS
-651A  OUTI(S[0])  00    C0    10  41     26 83
+651A  OUTI(S[0])  00    C0    10  41     26 01
                   hdr0  S:g0  0   INDEX  CALL1 OUTI
-6520  X=F(D)      00    C1    26 85    47    C2
+6520  X=F(D)      00    C1    26 02    47    C2
                   hdr0  D:g1  CALL1 F  PULL  X:g2
 ```
 
@@ -252,7 +252,10 @@ Writing is a call like any other: `OUTS("X=")` is the literal, pushed as its
 address, and `CALL1 OUTS`. There is no PRINT, and the stored form has no
 separators for one; `OUTS`, `OUTI` and `F` are ordinary symbols, made
 subroutines by DEF lines not shown here (see
-[SYNTAX.md](SYNTAX.md#output)).
+[SYNTAX.md](SYNTAX.md#output)). Wherever an example leaves its DEF lines
+out, they are taken to come in the order the calls first name them, which is
+what gives the subroutine numbers in its compiled calls: `OUTS` 0, `OUTI` 1
+and `F` 2 here.
 
 ## IF and ELSE
 
@@ -280,7 +283,7 @@ as compiled
                hdr0  ELSE 0000
 6513   S=2     01    12  47    C1
                hdr1  2   PULL  S:g1
-6517  OUTI(S)  00    C1    26 82
+6517  OUTI(S)  00    C1    26 00
                hdr0  S:g1  CALL1 OUTI
 ```
 
@@ -319,7 +322,7 @@ as compiled
                  hdr1  I:g0  1   +   PULL  I:g0
 6511             08      66 04 65
                  (jump)  JUMP 6504
-6515  OUTI(I)    00    C0    26 81
+6515  OUTI(I)    00    C0    26 00
                  hdr0  I:g0  CALL1 OUTI
 ```
 
@@ -352,11 +355,11 @@ as compiled
                  hdr1  I:g0  1   +   PULL  I:g0
 6511   IF I==2   01    63 1C 65  C0    12  30
                  hdr1  IF 651C   I:g0  2   ==
-6518    OUTI(I)  02    C0    26 81
+6518    OUTI(I)  02    C0    26 00
                  hdr2  I:g0  CALL1 OUTI
 651C             08      66 04 65
                  (jump)  JUMP 6504
-6520  OUTI(99)   00    50 63  26 81
+6520  OUTI(99)   00    50 63  26 00
                  hdr0  99     CALL1 OUTI
 ```
 
@@ -383,7 +386,7 @@ as edited
 as compiled
 6500  G=10          00    1A  47    C0
                     hdr0  10  PULL  G:g0
-6504  R=ADD(G,5)    00    C0    15  27 82      47    C1
+6504  R=ADD(G,5)    00    C0    15  27 00      47    C1
                     hdr0  G:g0  5   CALL2 ADD  PULL  R:g1
 650B  DEF ADD(A,B)  00    20   82   3F  80    43  81    40
                     hdr0  DEF  ADD  (   A:l0  ,   B:l1  )
@@ -397,8 +400,15 @@ as compiled
 
 A call is `CALLn` and the callee's symbol id, with the arguments pushed before
 it. The parentheses and commas are not stored: the `2` in `CALL2` says how many
-arguments there were. The callee stays a symbol id even when compiled (`82` in
-both images), because the executor uses it to find the subroutine's record.
+arguments there were. Compiling replaces the symbol id with the subroutine's
+number, `00` here, which is its DEF's place among the program's DEF lines,
+counting from 0. The executor finds the subroutine's record with it, in one
+step. Restoring puts the symbol id back from the record, which keeps it.
+
+The compiler also checks every call before anything runs. A name with no DEF
+is error 21, and a call with more or fewer arguments than the DEF has
+parameters is error 22. Both are reported on the line of the call, even when
+that line would never run.
 
 The `DEF` line is stored as typed, parentheses included, since a declaration has
 nothing to evaluate. Compiling rewrites its parameters to slots: `A` becomes
@@ -434,7 +444,7 @@ as edited
 as compiled
 6500  N=1           00    11  47    C0
                     hdr0  1   PULL  N:g0
-6504  BUMP(&N)      00    44    C0    26 81
+6504  BUMP(&N)      00    44    C0    26 00
                     hdr0  ADDR  N:g0  CALL1 BUMP
 6509  DEF BUMP(X&)  00    20   81    3F  A0     44  40
                     hdr0  DEF  BUMP  (   X:l0&  &   )
@@ -475,7 +485,7 @@ as edited
 as compiled
 6500  DIM V[3]        00    23   C0    41  13  42
                       hdr0  DIM  V:g0  [   3   ]
-6506  T=SUM(V)        00    C0    26 82      47    C1
+6506  T=SUM(V)        00    C0    26 00      47    C1
                       hdr0  V:g0  CALL1 SUM  PULL  T:g1
 650C  DEF SUM(A[])    00    20   82   3F  80    45  40
                       hdr0  DEF  SUM  (   A:l0  []  )
@@ -520,7 +530,7 @@ as edited
 as compiled
 6500  C=0        00    10  47    C0
                  hdr0  0   PULL  C:g0
-6504  INC()      00    25 81
+6504  INC()      00    25 00
                  hdr0  CALL0 INC
 6507  DEF INC()  00    20   81   3F  40
                  hdr0  DEF  INC  (   )
@@ -553,7 +563,7 @@ as edited
                     hdr1  RETURN  T   0   INDEX
 
 as compiled
-6500  X=F()         00    25 81    47    C0
+6500  X=F()         00    25 00    47    C0
                     hdr0  CALL0 F  PULL  X:g0
 6505  DEF F()       00    20   81  3F  40
                     hdr0  DEF  F   (   )
@@ -585,9 +595,9 @@ as edited
                                       hdr0  DEF  QON   (   A   ,   B   ,   C   ,   D   ,   E   ,   F   )   $"7BD3"
 
 as compiled
-6500  PUTCH(42)                       00    50 2A  26 80
+6500  PUTCH(42)                       00    50 2A  26 00
                                       hdr0  42     CALL1 PUTCH
-6505  X=QON(1,2,3,4,5,6)              00    11  12  13  14  15  16  2B 82       47    C0
+6505  X=QON(1,2,3,4,5,6)              00    11  12  13  14  15  16  2B 01       47    C0
                                       hdr0  1   2   3   4   5   6   CALL6 QON   PULL  X:g0
 6510  DEF PUTCH(C) $000D              00    20   80     3F  80    40  62 0D 00
                                       hdr0  DEF  PUTCH  (   C:l0  )   $000D
@@ -622,7 +632,7 @@ as edited
                                  hdr0  1   2   3   4   5   6   7   8   9   10  CALLN 10 F  PULL  X
 
 as compiled
-6500  X=F(1,2,3,4,5,6,7,8,9,10)  00    11  12  13  14  15  16  17  18  19  1A  2F 0A 81    47    C0
+6500  X=F(1,2,3,4,5,6,7,8,9,10)  00    11  12  13  14  15  16  17  18  19  1A  2F 0A 00    47    C0
                                  hdr0  1   2   3   4   5   6   7   8   9   10  CALLN 10 F  PULL  X:g0
 ```
 

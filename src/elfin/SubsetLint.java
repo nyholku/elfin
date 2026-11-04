@@ -59,7 +59,7 @@ public class SubsetLint {
 			// and a hand written reversal, three of which move a block of lines
 			"MEMREV",
 			// and a hand written walk over one line's tokens
-			"LINEEND", "STMTEND", "SCANEOL",
+			"LINEEND", "STMTEND", "SCANEOL", "NEXTDEF",
 			// and the storage hook, through page 0 to whatever driver is there
 			"STORAGE",
 			// and the rebuild of a statement to infix, hand written too

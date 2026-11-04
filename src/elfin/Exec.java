@@ -433,33 +433,7 @@ public class Exec {
 			callee = rd8(PC + 1);
 			PC = m16(PC + 2);
 		}
-		PUSH(DO_CALL(callee - T_REF, argc)); // a call still carries the symbol id
-	}
-
-	static int EVAL_CALL(int tok) {
-		int sym = tok - T_REF; // a call still carries the symbol id, not a cell
-		PC = m16(PC + 2); // past the reference and '('
-		int argc = 0;
-		if (rd8(PC) == T_RPAR) {
-			PC = m16(PC + 1);
-		} else {
-			while (true) {
-				int v = EVAL();
-				PUSH(v);
-				argc = argc + 1;
-				int t = rd8(PC);
-				if (t == T_COMMA) {
-					PC = m16(PC + 1);
-					continue;
-				}
-				if (t == T_RPAR) {
-					PC = m16(PC + 1);
-					break;
-				}
-				THROW(E_EXPECTED_RPAR);
-			}
-		}
-		return DO_CALL(sym, argc);
+		PUSH(DO_CALL(callee, argc)); // the subroutine's number: see LINK_CALLS
 	}
 
 	/**
@@ -470,30 +444,12 @@ public class Exec {
 	 * on the stacks.  Here the caller's context is simply the locals of this
 	 * invocation, and the callee's lines run inside it.
 	 */
-	static int DO_CALL(int symId, int argc) {
-		// SYM is borrowed, not spent: the symbol table lookup reads it, but
-		// the hand written executor on the machine has no SYM and leaves the
-		// register holding whatever the compiler last put there.  Putting it
-		// back keeps the two executors comparable register for register after
-		// a run, which is what elfin.DiffPcode checks.  SYMPTR likewise:
-		// the lookup leaves it pointing at the callee's entry.
-		int keepSym = SYM, keepPtr = SYMPTR;
-		SYM = symId;
-		SYM_GET_FLAGS();
-		boolean isSub = (SYMFLAGS & F_ISSUB) != 0;
-		if (isSub)
-			SYM_GET_VALUE();
-		SYM = keepSym;
-		SYMPTR = keepPtr;
-		if (!isSub) {
-			THROW(E_NOSUB);
-		}
-		int rec = rd16(SUBIDX + 2 * SYMVALUE);
+	static int DO_CALL(int sub, int argc) {
+		// The compiler has checked that this is a DEF and that argc is its
+		// parameter count (LINK_CALLS), so there is nothing to look up.
+		int rec = rd16(SUBIDX + 2 * sub);
 
 		if ((rd8(rec + SR_FLAGS) & F_ISNATIVE) != 0) {
-			if (argc != rd8(rec + SR_NPARAMS)) {
-				THROW(E_ARITY);
-			}
 			// Nothing is moved: the routine reads the arguments where they
 			// lie, so SP must still point at them while it runs.
 			int keepT1 = T1; // borrowed like SYM above, and put back
@@ -510,9 +466,6 @@ public class Exec {
 
 		int np = rd8(rec + SR_NPARAMS);
 		int nslots = rd8(rec + SR_NSLOTS);
-		if (argc != np) {
-			THROW(E_ARITY);
-		}
 		int newFP = m16(SP + 2 * np - 2); // argument zero, in place
 		int callerSP = m16(SP + 2 * argc); // the stack before the arguments
 

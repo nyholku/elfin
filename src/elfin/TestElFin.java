@@ -311,7 +311,7 @@ public class TestElFin {
 	static void rerunTests() {
 		rerunGate("a name that was a DEF and is not any more",
 				new String[] { "X=OUTI(FOO())", "DEF FOO()", "DEF OUTI(N) $0019" }, 1, "FOO=9",
-				new String[] { "RUNTIME ERROR " + ElFin.E_NOSUB });
+				new String[] { "COMPILE ERROR " + ElFin.E_NOSUB + " on line 1" });
 		rerunGate("a global does not keep a cell the next compile hands out",
 				new String[] { "A=1", "OUTI(A)", "DEF OUTI(N) $0019" }, 0, "B=7",
 				new String[] { "0" });
@@ -532,7 +532,7 @@ public class TestElFin {
 		execGate("a native call has a value", new String[] { "PRINT PUTCH(65)",
 				"DEF PUTCH(C) $000D" }, new String[] { "A65" });
 		execGate("arity is checked", new String[] { "PUTCH(1,2)", "DEF PUTCH(C) $000D" },
-				new String[] { "RUNTIME ERROR 22" });
+				new String[] { "COMPILE ERROR 22 on line 1" });
 		// Six arguments: the old convention copied them into four fixed cells
 		// and refused more than that.  They are read where they lie now, so the
 		// only limit is the stack.
@@ -549,8 +549,8 @@ public class TestElFin {
 		// 1802 does it mean anything (SYNTAX.md).
 		execGate("inline machine code the reference cannot run", new String[] { "PRINT BAR()",
 				"DEF BAR() $\"C012AB\"" }, new String[] { "RUNTIME ERROR 31" });
-		execGate("inline code checks arity first", new String[] { "BAR()",
-				"DEF BAR(C) $\"C012AB\"" }, new String[] { "RUNTIME ERROR 22" });
+		execGate("inline code's arity is checked too", new String[] { "BAR()",
+				"DEF BAR(C) $\"C012AB\"" }, new String[] { "COMPILE ERROR 22 on line 1" });
 
 		// What the whole form rests on: the record's address is the address of
 		// the bytes where they lie in the code stream, so the routine travels
@@ -1532,10 +1532,22 @@ public class TestElFin {
 
 		execGate("index out of range", new String[] { "DIM A[4]", "PRINT A[9]" },
 				new String[] { "RUNTIME ERROR " + ElFin.E_RANGE });
+		// Both are the compiler's to find (LINK_CALLS), wherever the call is -
+		// in code that never runs too, as with any other compile error - and
+		// they name the line the call is on, not the DEF's.
 		execGate("wrong argument count", new String[] { "FOO(1,2)", "DEF FOO(X)", " PRINT X" },
-				new String[] { "RUNTIME ERROR " + ElFin.E_ARITY });
+				new String[] { "COMPILE ERROR " + ElFin.E_ARITY + " on line 1" });
 		execGate("undefined subroutine", new String[] { "PRINT NOSUCH()" },
-				new String[] { "RUNTIME ERROR " + ElFin.E_NOSUB });
+				new String[] { "COMPILE ERROR " + ElFin.E_NOSUB + " on line 1" });
+		execGate("an undefined call that never runs", new String[] { "A=1", "IF A==0", " NOSUCH()",
+				"PRINT A" }, new String[] { "COMPILE ERROR " + ElFin.E_NOSUB + " on line 3" });
+		execGate("the line counted past blank lines, comments and blocks", new String[] { "WHILE 0",
+				" A=1", "", "# NOTE", "IF 1", " B=2", "ELSE", " C=3", "FOO(1)", "DEF FOO(X,Y)" },
+				new String[] { "COMPILE ERROR " + ElFin.E_ARITY + " on line 9" });
+		execGate("calls before and after their DEF, and a wide one", new String[] {
+				"PRINT F(1)+G()+W(1,2,3,4,5,6,7,8,9,10,11)", "DEF F(X)", " RETURN X+G()", "DEF G()",
+				" RETURN 10", "DEF W(A,B,C,D,E,H,I,J,K,L,M)", " RETURN A+M" },
+				new String[] { "33" });
 		execGate("division by zero", new String[] { "A=0", "PRINT 1/A" },
 				new String[] { "RUNTIME ERROR " + ElFin.E_DIVZERO });
 	}

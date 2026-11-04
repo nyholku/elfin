@@ -166,6 +166,12 @@ UN_GO
           PLO   R7
           LDN   R7              ; a declaration is names and shapes only
           SMI   UT_DEF
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBZ   UN_LEAVE
           SMI   UT_GLOBAL-UT_DEF
           FBZ   UN_LEAVE
@@ -180,9 +186,9 @@ UN_GO
           BZ    UN_KEYWORD
           LDN   R7
           SMI   UT_IF
-          FBNF  UN_NOKEY
+          BNF   UN_NOKEY
           SMI   3
-          FBDF  UN_NOKEY
+          BDF   UN_NOKEY
 UN_KEYWORD
           NXCALLF UN_PUT,UN_NOKEY
 UN_NOKEY
@@ -214,21 +220,21 @@ UN_SCAN2
 UN_SPLIT                        ; R7 on the store: the target is printed first
           PUSH2 R7
           INC   R7
-          NXCALLI UN_RANGE,UN_SPLIT2
+          NXCALLF UN_RANGE,UN_SPLIT2
 UN_SPLIT2
           LDI   UT_ASSIGN
           STR   R8
           INC   R8
           POP2  R9              ; then the value, up to the store
           POP2  R7
-          NXCALLI UN_RANGE,UN_BACK
+          NXCALLF UN_RANGE,UN_BACK
 UN_NOSPLIT                      ; one expression: a call, or what RETURN, IF
           POP2  R7              ; and WHILE carry
-          NXCALLI UN_RANGE,UN_BACK
+          NXCALLF UN_RANGE,UN_BACK
 ; The infix back over the compiled form, as much as emit() would let through.
 UN_BACK
           UNERR
-          BNZ   UN_LEAVE
+          FBNZ  UN_LEAVE
           GLO   R8              ; RD = pfd - PFBUF
           SMI   lo(PFBUF_)
           PLO   RD
@@ -332,19 +338,22 @@ UN_RPAREN
           LD16  RD,UN_PARENB
           LD16  RF,UN_PARENE
           UNULT RD,RF
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBDF  UN_RLOOP        ; no records on this line
           NXCALLF UN_PARENS,UN_RPW
 UN_RPW                          ; R6 = how many: wrap the top fragment that often
           GLO   R6
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          FBNZ  UN_RPW1
+          BNZ   UN_RPW1
           GHI   R6
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
@@ -362,6 +371,7 @@ UN_RPW1
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBNZ  UN_RLOOP
           GLO   RC
           BNZ   UN_RPW2
@@ -371,9 +381,15 @@ UN_RPW1
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBZ   UN_RLOOP
 UN_RPW2
           UNERR
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
           SEX   R2              ; pad: a far branch off the page end
@@ -442,6 +458,8 @@ UN_WIDTH
           SMI   UT_CALL0
           FBNF  UN_W1           ; keywords and the like
           SMI   UT_CALLN-UT_CALL0
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBNF  UN_W2           ; a call: the name it calls follows
           LDN   R7
           SHL
@@ -452,9 +470,6 @@ UN_WIDTH
           SMI   010h
           FBNF  UN_W2
           SMI   010h
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
-          SEX   R2              ; pad: a far branch off the page end
           FBNF  UN_W3
           SMI   UT_STR-070h
           FBNF  UN_WLEN
@@ -515,7 +530,7 @@ UN_PUT1
           GLO   RF
           BNZ   UN_PUT1
           GHI   RF
-          FBNZ  UN_PUT1
+          BNZ   UN_PUT1
           NXRET
 
 ; UN_MOVE - RD bytes from RE to RF, overlapping either way (MEMMOVE).
@@ -623,9 +638,15 @@ UN_FSH1
           DEC   RE
           DEC   RF
           GLO   RF
-          BNZ   UN_FSH1
+          FBNZ  UN_FSH1
           GHI   RF
-          BNZ   UN_FSH1
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBNZ  UN_FSH1
 UN_FINS2
           GLO   RD
           ADI   lo(FARENA_)
@@ -693,6 +714,13 @@ UN_CT2
 UN_CT3
           UNFULL
           SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBDF  UN_LONG
           LDA   R7
           STR   RE
@@ -707,11 +735,20 @@ UN_CTRET
 UN_PREC
           LDN   R7
           SMI   UT_ADD
-          BNF   UN_PR1
+          FBNF  UN_PR1
           SMI   UT_MUL-UT_ADD
-          BNF   UN_PR2
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBNF  UN_PR2
           SMI   UT_NEG-UT_MUL
-          BNF   UN_PR3
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBNF  UN_PR3
           LDI   4
           BR    UN_PRSET
 UN_PR1
@@ -909,7 +946,7 @@ UN_CA2
           PHI   RD
           UNSTW RD
           GLO   R6
-          BZ    UN_CA6
+          FBZ   UN_CA6
           GLO   R6              ; fsp -= n
           STR   R2
           GLO   RC
@@ -1003,13 +1040,20 @@ UN_PARENS
           PHI   RE
 UN_PA1
           UNULT RD,RF
-          BDF   UN_PADONE
+          FBDF  UN_PADONE
           LDN   RD
           XRI   0FFh
-          BZ    UN_PADONE       ; a comment runs to the end
+          FBZ   UN_PADONE       ; a comment runs to the end
           LDN   RD
           XRI   0F1h
-          BZ    UN_PAREC
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBZ   UN_PAREC
           LDN   RD
           XRI   0F0h
           BZ    UN_PAF0

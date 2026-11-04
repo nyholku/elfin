@@ -125,10 +125,10 @@ public class ShowTok {
 			label = "" + (t & 0x0F);
 		} else if (t >= ElFin.T_CALL0 && t < ElFin.T_CALLN) {
 			size = 2;
-			label = "CALL" + (t - ElFin.T_CALL0) + " " + symName(rd8(at + 1) - 0x80);
+			label = "CALL" + (t - ElFin.T_CALL0) + " " + callee(rd8(at + 1));
 		} else if (t == ElFin.T_CALLN) {
 			size = 3;
-			label = "CALLN " + rd8(at + 1) + " " + symName(rd8(at + 2) - 0x80);
+			label = "CALLN " + rd8(at + 1) + " " + callee(rd8(at + 2));
 		} else if (t < 0x50) {
 			label = op(t, decl);
 		} else if (t < 0x60) {
@@ -162,6 +162,16 @@ public class ShowTok {
 					b.append(String.format("%02X", rd8(at + 3 + i)));
 			label = b.append('"').toString();
 		}
+	}
+
+	/**
+	 * A call's callee by name.  Compiled, the byte is the subroutine's number,
+	 * and the name comes from its record, as RESTORE_ALL gets it back.
+	 */
+	static String callee(int b) {
+		if (b >= 0x80)
+			return symName(b - 0x80);
+		return symName(rd8(rd16(ElFin.SUBIDX + 2 * b) + ElFin.SR_SYM));
 	}
 
 	static String target(int v) {

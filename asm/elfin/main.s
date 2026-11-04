@@ -61,8 +61,8 @@ USTAT   EQU    5               ; INP 5 status: bit 0 DA, bit 7 THRE
 ;   0000  interpreter           the p-code VM's handlers; MAINLOOP is dead
 ;   0128  system code           tokenizer, detokenizer, compiler, editor,
 ;                               in ElFin's own instruction set
-;   4400  JMPTBL                one entry per subroutine, page aligned
-;   4550  executor              the loop that runs both, hand written, then
+;   4500  JMPTBL                one entry per subroutine, page aligned
+;   4650  executor              the loop that runs both, hand written, then
 ;                               the routines behind page 0's vectors
 ;   5C00  NXTAB                 the executor's dispatch table, page aligned
 ;
@@ -112,8 +112,8 @@ UNIFIED   EQU  1
 ; either one growing into the other.
         IFDEF UNIFIED
 PCODEAT     EQU  00148h   ; after the handlers, which start after page 0's block
-JMPTBL_BASE EQU  04400h   ; 3D00, 3E00 for page 0, 4200 for block editing, 4300 for LINEEND, 4200 without PRINT, 4300 for save and load, 4400 for the boot message
-EXECAT_     EQU  04550h
+JMPTBL_BASE EQU  04500h   ; 3D00, 3E00 for page 0, 4200 for block editing, 4300 for LINEEND, 4200 without PRINT, 4300 for save and load, 4400 for the boot message, 4500 for calls linked at compile time
+EXECAT_     EQU  04650h
         ELSE
 PCODEAT     EQU  0028Ah   ; the VM's dispatch is assembled in this one
 JMPTBL_BASE EQU  03B00h   ; 3A00 until pJUMPN and the wider literals
@@ -484,10 +484,19 @@ STORIO                  ; STORAGE(OP, C): page 0's storage hook
 NX_STMTEND                      ; the same walk, stopping at the block
           LDI   1
           BR    NXLE_GO
+NX_NEXTDEF                      ; the walk on a loop, to the next DEF line or
+          LDI   2               ; the end mark: the compiler's NUMBER_DEFS
+          PLO   RE
+          LDA   R8
+          PLO   RC
+          LDN   R8
+          PHI   RC              ; RC = the first line to look at
+          DEC   R8
+          BR    NXND_TEST
 NX_LINEEND
           LDI   0
 NXLE_GO
-          PLO   RE              ; nonzero: leave the block where it is
+          PLO   RE              ; 1: leave the block where it is; 2: NEXTDEF
           LDA   R8
           PLO   RC
           LDN   R8
@@ -561,7 +570,8 @@ NXLE_1
           BR    NXLE_TOK
 NXLE_EOL
           GLO   RE
-          BNZ   NXLE_DONE       ; NX_STMTEND: this is the answer
+          XRI   1
+          BZ    NXLE_DONE       ; NX_STMTEND: this is the answer
           LDN   RC
           SMI   00Eh
           BNF   NXLE_DONE       ; a header, or the end: no block to skip
@@ -583,6 +593,18 @@ NXLE_EOL
           PHI   RC
           SEX   R8
 NXLE_DONE
+          GLO   RE
+          XRI   2
+          BNZ   NXSE_DONE       ; LINEEND and STMTEND: RC is the answer
+NXND_TEST                       ; NEXTDEF: RC is a line - the one wanted?
+          LDN   RC
+          XRI   00Dh            ; T_ENDMARK
+          BZ    NXSE_DONE
+          INC   RC
+          LDN   RC
+          XRI   020h            ; T_DEF
+          BNZ   NXLE_TOK        ; no: walk it, RC already past its header
+          DEC   RC              ; a DEF line: its header is the answer
 NXSE_DONE
           GLO   RC
           STR   R8

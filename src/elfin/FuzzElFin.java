@@ -255,14 +255,20 @@ public class FuzzElFin {
 			p.add("G" + i + "=" + rnd.nextInt(1000));
 		p.add("DIM AR[" + (1 + rnd.nextInt(8)) + "]");
 		int subs = 1 + rnd.nextInt(3);
+		nSubs = subs;
 		for (int s = 0; s < subs; s++)
 			p.add("S" + s + "(" + rnd.nextInt(10) + ")");
 		for (int s = 0; s < subs; s++) {
 			p.add("DEF S" + s + "(P)");
 			body(p, 1, 0);
 		}
+		// Every call has to reach a DEF with as many parameters, or the
+		// program does not compile (LINK_CALLS): OUT is a native one.
+		p.add("DEF OUT(N) $0019");
 		return p;
 	}
+
+	static int nSubs; // the S<n> a body may call, before or after its own DEF
 
 	static void body(ArrayList<String> p, int indent, int locals) {
 		int n = 1 + rnd.nextInt(3);
@@ -274,7 +280,10 @@ public class FuzzElFin {
 				locals++;
 				break;
 			case 1:
-				p.add(pad + "OUT(P)");
+				if (rnd.nextBoolean())
+					p.add(pad + "OUT(P)");
+				else
+					p.add(pad + "S" + rnd.nextInt(nSubs) + "(P)");
 				break;
 			case 2:
 				p.add(pad + "GLOBAL G0");

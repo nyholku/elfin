@@ -1330,9 +1330,8 @@ NXEV_CALLN
           LDA   R7
           PLO   RD              ; arity, in a byte of its own
 NXEV_CALLGO
-          LDA   R7
-          SMI   080h            ; a call still carries the symbol id
-          PLO   RA
+          LDA   R7              ; the subroutine's number, which the compiler
+          PLO   RA              ; put there (ElFin.java's LINK_CALLS)
           NXCALLF NX_DO_CALL,NXEV_LOOP ; its NXRET is the way back to the loop
 
 NXEV_LIT16
@@ -1890,7 +1889,7 @@ NXKN1                            ; quietly eat the program
           PLO   RD
           PHI   RD
           DEC   RF
-          FBR   NXEV_ENT1
+          BR    NXEV_ENT1
 
 NXEV_RETURN
           POPR  RD              ; the value it is returning
@@ -2373,7 +2372,7 @@ NXPI_EMIT
           PLO   RC
           NXCALLF NX_PUTC,NXK33
 NXK33
-          FBR   NXPI_OUT
+          BR    NXPI_OUT
 NXPI_DONE
           NXRET
 
@@ -2491,7 +2490,7 @@ NXED_LOCAL
 NXK48
           INC   R7              ; past the reference and the '['
           INC   R7
-          NXCALLF NX_LIT_AT,NXK49 ; RD = the element count
+          NXCALLI NX_LIT_AT,NXK49 ; RD = the element count
 NXK49
           GLO   RD              ; 2*count: the header, the array's size in bytes
           SHL
@@ -2843,51 +2842,11 @@ NXDC_ROOM
           STR   R2
           DEC   R2              ; argc, over everything below
 
-          GLO   RA              ; SYMPTR = MEM_TOP - 4*(sym+1), in line:
-          ADI   1               ; through SUB16_H it was two pushes, a
-          SHL                   ; handler and a pop
-          PLO   RC
-          LDI   0
-          SHLC
-          PHI   RC              ; 2*(sym+1)
-          GLO   RC
-          SHL
-          PLO   RC
-          GHI   RC
-          SHLC
-          PHI   RC              ; 4*(sym+1)
-          LDI   hi(NX_MEMTOP_AT)
-          PHI   RE
-          LDI   lo(NX_MEMTOP_AT)
-          PLO   RE
-          SEX   RE
-          GLO   RC
-          SD
-          PLO   RF
-          INC   RE
-          GHI   RC
-          SDB
-          PHI   RE
-          GLO   RF
-          PLO   RE              ; RE = the symbol's entry
-          SEX   R2
-
-          INC   RE
-          INC   RE
-          LDA   RE
-          PLO   RC              ; flags
-          LDN   RE
-          PLO   RA              ; value: which subroutine record
-          GLO   RC
-          ANI   NXF_ISSUB
-          BNZ   NXDC_ISSUB
-          LDI   NXE_NOSUB
-          PLO   RC
-          FBR   NX_THROW
-NXK84
-          FBR   NXDC_DROPZERO
-NXDC_ISSUB
-          LDI   hi(NX_SUBIDX_AT) ; R9 = SUBIDX[value], the subroutine record
+          ; RA.0 is the subroutine's number.  Whether the name is a DEF and
+          ; whether argc is its parameter count, the compiler has checked: a
+          ; call that is neither does not compile (E_NOSUB, E_ARITY).
+NXDC_REC
+          LDI   hi(NX_SUBIDX_AT) ; R9 = SUBIDX[n], the subroutine record
           PHI   RE
           LDI   lo(NX_SUBIDX_AT)
           PLO   RE
@@ -2920,24 +2879,6 @@ NXDC_ISSUB
           ST16  NX_T0,R9        ; what the native path reads it from
 
 ; ---- a native DEF: machine code at an address the program gave -----------
-          LD16  RC,NX_T0
-          GLO   RC
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          INC   RD
-          INC   RD              ; NXSR_NPARAMS
-          LDN   RD
-          PLO   RC
-          INC   R2
-          LDN   R2
-          DEC   R2
-          PLO   RF              ; argc, peeked
-          GLO   RF
-          STR   R2
-          GLO   RC
-          XOR                   ; equality, without borrowing X for a subtract
-          FBNZ  NXDC_ARITY
           ST16  SP_CELL,R8      ; the routine reads its arguments off the stack
           LD16  RC,NX_T0
           GLO   RC
@@ -2949,10 +2890,10 @@ NXDC_ISSUB
           LDN   RD
           PHI   R6
           GHI   R6              ; one of page 0's terminal vectors?
-          FBNZ  NXDC_MCODE
+          BNZ   NXDC_MCODE
           GLO   R6
           SMI   lo(VN_LAST)
-          FBDF  NXDC_SYSQ       ; no: machine code, or the executor's own
+          BDF   NXDC_SYSQ       ; no: machine code, or the executor's own
           GLO   R6              ; yes: D in and D out, not the native way
           PLO   RF
           LDI   0
@@ -2975,7 +2916,7 @@ NXDC_ISSUB
           INC   RF
           LDI   0
           STR   RF
-          FBR   NXDC_NATBACK
+          BR    NXDC_NATBACK
 
 ; OUTS and OUTI, page 0's VN_SYS..VN_SYSEND: run here, with the executor's own
 ; code for writing text and numbers.  Their arguments stay where the caller
@@ -3084,10 +3025,6 @@ NXKNS
 NXKNX
           NXRET
 
-NXDC_ARITY
-          LDI   NXE_ARITY
-          PLO   RC
-          FBR   NX_THROW
 NXK85
 NXDC_DROPZERO
           INC   R2              ; argc, dropped
@@ -3119,13 +3056,6 @@ NXDC_ElFin
           PHI   RC              ; RC.1 = nslots
           LDN   RF
           PLO   RD              ; RD.0 = the frame's array bytes
-          INC   R2
-          LDN   R2              ; argc, peeked
-          DEC   R2
-          STR   R2
-          GLO   RC
-          XOR
-          FBNZ  NXDC_ARITY
 
           GLO   RC              ; newFP = SP + 2*np - 2
           SHL
@@ -3311,7 +3241,7 @@ NXK88
           PLO   RE
           GLO   RD
           STR   RE              ; and R2 on argc, which is dropped
-          NXCALLI NX_ISSTMT,NXK88S
+          NXCALLF NX_ISSTMT,NXK88S
 NXK88S
           BDF   NXK88X          ; F(X) on a line of its own: nothing wants it
           LD16  RD,NX_RETVAL

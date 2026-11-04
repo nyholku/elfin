@@ -457,7 +457,10 @@ OUTI(MAX(3, 5))              # 5
 OUTI(FACT(6))                # 720
 ```
 
-Calling a name that has no DEF stops with error 21.
+Every call is checked when the program is compiled, before anything runs: a
+name that has no DEF is error 21, and a call with a different number of
+arguments than the DEF has parameters is error 22. The error names the line of
+the call, even if that line would never run.
 
 ## Machine code
 
@@ -902,8 +905,8 @@ The rest are raised while compiling or running:
 | 14 | `E_NUM_RANGE` | a literal above 65535 |
 | 15-17 | | line too long, out of symbols, out of memory |
 | 20 | `E_RANGE` | an array index outside the array |
-| 21 | `E_NOSUB` | a call to a name with no DEF |
-| 22 | `E_ARITY` | the wrong number of arguments |
+| 21 | `E_NOSUB` | a call to a name with no DEF (found when compiling, on the call's line) |
+| 22 | `E_ARITY` | the wrong number of arguments (found when compiling, on the call's line) |
 | 23 | `E_DIVZERO` | division or `%` by zero |
 | 25-27 | | too many globals, locals, subroutines |
 | 28 | `E_NOT_ARRAY` | `.DIM` on something that is not an array (indexing one is error 20, when it runs) |

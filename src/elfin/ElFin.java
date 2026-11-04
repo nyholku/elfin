@@ -2270,6 +2270,17 @@ public class ElFin {
 	// skip table (NX_SKIP_ITEM) in a few dozen.  This is the same
 	// walk, for the reference: past the header, every item, then the comment
 	// or tail block.  Neither side touches TOKEN.
+	// NEXTDEF: the first line at or after `at` that is a DEF, or the end mark.
+	// The compiler's NUMBER_DEFS looks at nothing else, and stepping a line at
+	// a time in p-code to find them cost a twentieth of the whole compile.
+	// A SYSCALL to NX_NEXTDEF, which is NX_LINEEND's walk on a loop.
+	static int NEXTDEF(int at) {
+		int p = at & 0xFFFF;
+		while (M[p] != T_ENDMARK && M[(p + 1) & 0xFFFF] != T_DEF)
+			p = LINEEND(p);
+		return p;
+	}
+
 	static int LINEEND(int at) {
 		int p = STMTEND(at);
 		if (M[p] >= T_COMMENT) // the comment or tail block
@@ -4046,13 +4057,17 @@ public class ElFin {
 	static final int BK_ELSE = 3;
 	static final int BK_WHILE = 4;
 
-	// sub record: [addr16][nparams8][nslots8][arrbytes8][flags8][sym per slot]
+	// sub record: [addr16][nparams8][nslots8][arrbytes8][flags8][sym8], and
+	// below it a sym per slot.  SR_SYM is the DEF's own name: a compiled call
+	// carries the subroutine's number, and RESTORE_ALL gets the name back
+	// from here, as it gets a slot's from the bytes below.
 	static final int SR_ADDR = 0;
 	static final int SR_NPARAMS = 2;
 	static final int SR_NSLOTS = 3;
 	static final int SR_ARRBYTES = 4;
 	static final int SR_FLAGS = 5;
-	static final int SR_SIZE = 6; // slot i lives at SUBREC - 1 - i
+	static final int SR_SYM = 6;
+	static final int SR_SIZE = 7; // slot i lives at SUBREC - 1 - i
 
 	// SYM_REF_AT: read the symbol reference at PC, if there is one.
 	//   IN:  PC   OUT: SYM (or -1), SYMSIZE = bytes of the reference
@@ -4130,6 +4145,11 @@ public class ElFin {
 			if (rd8(PC) == T_DIMQ && (LASTF & F_ISARRAY) == 0) {
 				ERR = E_NOT_ARRAY;
 				return;
+			}
+			if (ult(m16(rd8(PC) - T_CALL0), T_CALLN + 1 - T_CALL0)) { // CALL0..CALLN
+				LINK_CALL();
+				if (ERR != 0)
+					return;
 			}
 			SKIP_ITEM();
 			return;
@@ -4384,6 +4404,7 @@ public class ElFin {
 		wr8(SUBREC + SR_NSLOTS, 0);
 		wr8(SUBREC + SR_ARRBYTES, 0);
 		wr8(SUBREC + SR_FLAGS, 0);
+		wr8(SUBREC + SR_SYM, SYM);
 		SYMVALUE = NSUB;
 		SYM_SET_VALUE();
 		SYM_GET_FLAGS();
@@ -4638,6 +4659,7 @@ public class ElFin {
 			SYM_SET_VALUE();
 			SYM = SYM + 1;
 		}
+		NUMBER_DEFS();
 
 		PC = CODE_LO;
 		while (ult(PC, GAP_LO) && ERR == 0) {
@@ -4685,6 +4707,77 @@ public class ElFin {
 		HEAP_LO = CPTR;
 	}
 
+	// ---- calls ---------------------------------------------------------
+	//
+	// A compiled call carries the number of the subroutine it calls, so the
+	// executor goes straight to SUBIDX[n].  Whether the name is a DEF, and
+	// whether the call has as many arguments as the DEF has parameters, are
+	// known before anything runs and cannot change until the program is
+	// edited, which compiles it again - so they are compile errors, like .DIM
+	// on something that is not an array.
+	//
+	// A call usually comes before its DEF - the main program is at the top -
+	// so NUMBER_DEFS first reads every DEF line, and nothing else, for the
+	// numbers COMPILE_DEF will give them and their parameter counts.  The
+	// tables are in LINEBUF, which nothing uses while a program compiles.
+	// The symbol's value is not used for the number: a local or a global of
+	// the same name overwrites it.
+	//
+	// DEFOF is not cleared.  An entry is believed only when its number is
+	// below the count and DEFSYM at that number names the same symbol back,
+	// and DEFSYM is written fresh up to the count, so whatever LINEBUF held
+	// before cannot pass for a DEF.
+	static final int DEFOF = LINEBUF; // [symbol] -> its DEF's number
+	static final int DEFSYM = LINEBUF + 128; // [number] -> the DEF's symbol
+	static final int DEFNP = LINEBUF + 160; // [number] -> its parameter count
+	static final int NDEFS = LINEBUF + 255; // how many DEFs
+
+	// NUMBER_DEFS: the DEF lines, numbered in the order COMPILE_DEF meets them.
+	static void NUMBER_DEFS() {
+		wr8(NDEFS, 0);
+		PC = NEXTDEF(CODE_LO);
+		while (rd8(PC) != T_ENDMARK) { // NOERR
+			if (rd8(PC + 2) >= T_REF && rd8(NDEFS) < MAX_SUB) {
+				T1 = rd8(NDEFS);
+				T2 = rd8(PC + 2) - T_REF;
+				wr8(DEFOF + T2, T1);
+				wr8(DEFSYM + T1, T2);
+				T3 = 0; // its parameters: every name between the brackets
+				T2 = m16(PC + 4); // past the header, DEF, the name and '('
+				while (rd8(T2) != T_RPAR && rd8(T2) > T_EOL_HI) { // NOERR
+					if (rd8(T2) >= T_REF)
+						T3 = T3 + 1;
+					T2 = m16(T2 + 1);
+				}
+				wr8(DEFNP + T1, T3);
+				wr8(NDEFS, T1 + 1);
+			}
+			PC = NEXTDEF(LINEEND(PC));
+		}
+	}
+
+	// LINK_CALL: the call at PC, given the number of the DEF it calls.
+	//   OUT: ERR, PC unmoved
+	static void LINK_CALL() {
+		T2 = rd8(PC) - T_CALL0; // the arguments
+		T3 = m16(PC + 1); // the callee
+		if (T2 == T_CALLN - T_CALL0) { // the wide form: <arity8> <callee>
+			T2 = rd8(T3);
+			T3 = m16(T3 + 1);
+		}
+		SYM = rd8(T3) - T_REF;
+		T1 = rd8(DEFOF + SYM);
+		if (T1 >= rd8(NDEFS) || rd8(DEFSYM + T1) != SYM) {
+			ERR = E_NOSUB;
+			return;
+		}
+		if (T2 != rd8(DEFNP + T1)) {
+			ERR = E_ARITY;
+			return;
+		}
+		wr8(T3, T1);
+	}
+
 	// ---- restore -------------------------------------------------------
 
 	// RESTORE_ALL: EXECUTE -> EDIT.  The exact inverse of COMPILE_ALL: symbol
@@ -4729,8 +4822,19 @@ public class ElFin {
 					wr8(PC + 1, 0);
 					wr8(PC + 2, 0);
 					PC = m16(PC + 3);
+				} else if (TOKEN == T_CALLN || (TOKEN >= T_CALL0 && TOKEN < T_CALLN)) {
+					// LINK_CALLS put the subroutine's number where its name
+					// was; a call it did not reach - the compile stopped
+					// first - still has the name, which is 0x80 or more
+					if (TOKEN == T_CALLN)
+						T3 = m16(PC + 2);
+					else
+						T3 = m16(PC + 1);
+					if (rd8(T3) < T_REF)
+						wr8(T3, T_REF + rd8(rd16(SUBIDX + 2 * rd8(T3)) + SR_SYM));
+					SKIP_ITEM();
 				} else if (TOKEN >= T_REF) {
-					// A subroutine reference still carries its symbol id - the
+					// A DEF line's own name still carries its symbol id - the
 					// compiler leaves those alone - and what tells it from a
 					// local slot is the '(' after it, which is the same rule
 					// the tokenizer uses.
