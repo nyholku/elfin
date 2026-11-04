@@ -80,19 +80,19 @@ Ctrl-R runs before every run, is counted separately.
 ## Results
 
 ElFin as of this branch (executor after the call, INDEX and statement-layer
-work). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf. ElFin runs
+work, and `&` and `|` with their own handlers). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf. ElFin runs
 almost no 3-cycle instructions, so its cycles are its instructions × 2.
 
 | | Tiny BASIC | ElFin | Tiny BASIC ÷ ElFin |
 |---|---|---|---|
-| setup and first board | 105.9M cycles (8 min 1 s) | 1.47M (6.7 s) | 72× |
-| depth 1: search, move, board | 329.3M (24 min 57 s) | 8.64M (39 s) | 38× |
-| depth 2: search, move, board | 6,429.7M (8 h 7 min) | 167.4M (12 min 41 s) | 38× |
-| **whole run, depth 2** | **6,535.6M (8 h 15 min)** | **168.8M (12 min 47 s)** | **39×** |
+| setup and first board | 105.9M cycles (8 min 1 s) | 1.44M (6.5 s) | 74× |
+| depth 1: search, move, board | 329.3M (24 min 57 s) | 7.81M (35 s) | 42× |
+| depth 2: search, move, board | 6,429.7M (8 h 7 min) | 150.9M (11 min 26 s) | 43× |
+| **whole run, depth 2** | **6,535.6M (8 h 15 min)** | **152.3M (11 min 32 s)** | **43×** |
 | ElFin's compile before the run | none | 11.1M (50 s) | |
 
 Instructions for the whole run, for the record: at depth 2, 3,240.8M for
-Tiny BASIC and 84.4M for ElFin; at depth 1, 215.8M and 5.05M.
+Tiny BASIC and 76.2M for ElFin; at depth 1, 215.8M and 4.62M.
 
 Every number in this table comes from the simulator, not from Emma. The 1802
 has no wait states and no cache, and every instruction takes a fixed 2 or 3
@@ -103,10 +103,11 @@ would steal.
 
 The setup row shows the language more than the engine. It's 300 or so POKEs
 and loops that every GOTO reaches by scanning the program from the top. The
-search is the fair comparison, and it's 38× at both depths.
+search is the fair comparison, and it's 42–43×.
 
 Before the programs were rewritten without multiply and divide, the search
-was 30×: 336.8M cycles for Tiny BASIC at depth 1 and 11.1M for ElFin.
+was 30×: 336.8M cycles for Tiny BASIC at depth 1 and 11.1M for ElFin. After
+the rewrite, and before `&` and `|` got their own handlers, it was 38×.
 
 ## On Emma 02
 

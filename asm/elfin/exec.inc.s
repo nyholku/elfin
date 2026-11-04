@@ -1192,12 +1192,13 @@ NXD_ENTER                       ; 0x6B
 NXD_BAD                         ; no such opcode
           TOR3  NXEV_BAD
 
-; 0x38..0x3C - OR, MUL, DIV, MOD and AND, which still go the long way: park
-; the token and let NX_APPLY work out which it is.  The table reaches this
-; directly, so the five compares that used to stand in front of it are gone.
+; 0x39..0x3B - MUL, DIV and MOD, which still go the long way: park the token
+; and let NX_APPLY work out which it is.  The table reaches this directly, so
+; the compares that used to stand in front of it are gone.  OR and AND have
+; their own handlers, NXEV_OR and NXEV_AND.
 ;
-; NX_APPLY reaches CALLH five times, so this one cannot stay on R6.  It is
-; five instructions on the five rarest operators in the set.
+; NX_APPLY reaches CALLH several times, so this one cannot stay on R6.  It is
+; five instructions on the rarest operators in the set.
 NXEV_APPLY
           TOR3  NXA_ENTER
 NXA_ENTER
@@ -1407,6 +1408,47 @@ NXEV_RETN                       ; back to whoever SCALLed
 NXEV_XOR
           INC   R7
           NXCALLF NX_XOR,NXEV_LOOP ; its NXRET is the way back to the loop
+
+; & and | - on R6 from start to finish, as the comparisons are.  They went the
+; long way, through NXEV_APPLY: a switch to R3, the token parked in NX_OP, a
+; chain of compares to find which operator it was, a far call and NX_RETN
+; twice, all for four logic instructions.  Masks and flags are everyday code -
+; SQ&136, a port's status bit - so they get the short way.  No branches, so
+; there is no page to keep to.
+NXEV_AND
+          INC   R7
+          SEX   R8              ; b on top, a under it
+          LDA   R8
+          PLO   RF
+          LDA   R8
+          PHI   RF              ; R8 on a: its slot takes the answer
+          GLO   RF
+          AND
+          STR   R8
+          INC   R8
+          GHI   RF
+          AND
+          STR   R8
+          DEC   R8
+          SEX   R2
+          NXDONE6
+NXEV_OR
+          INC   R7
+          SEX   R8
+          LDA   R8
+          PLO   RF
+          LDA   R8
+          PHI   RF
+          GLO   RF
+          OR
+          STR   R8
+          INC   R8
+          GHI   RF
+          OR
+          STR   R8
+          DEC   R8
+          SEX   R2
+          NXDONE6
 NXEV_SHL
           INC   R7
           SEX   R8
