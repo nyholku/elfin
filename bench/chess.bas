@@ -9,28 +9,34 @@ REM Written the way Tiny BASIC wants, which is what makes it a fair race:
 REM GOTO and GOSUB search the program from the top, so the hot code comes
 REM first and the setup last; bench/tbload.py drops these REM lines and every
 REM blank outside a string, because the interpreter re-reads the text each
-REM time; and the move-making the ElFin version calls is inlined.
+REM time; and the move-making the ElFin version calls is inlined.  Like the
+REM ElFin version, the search never multiplies or divides: the position
+REM scores are tables made by SETUP, the ply lists are one stack, and the
+REM per-ply record and the move are pointers stepped along.
 REM
 REM There are 26 variables and no arrays, so everything else is memory:
 REM   Z=24576 board, 128 bytes, 0x88 layout
-REM   Y=24832 move lists, 192 bytes a ply: from, to
-REM   X=25600 per-ply records, 16 bytes: +1 I, +2 captured, +3 N,
-REM           +4/5 A, +6/7 B, +8/9 BEST, +10 best index at the root
+REM   Y=24832 the move stack, 2 bytes a move: from, to.  A ply's list
+REM           starts where the one below it ends
+REM   X=25600 per-ply records, 16 bytes: +0/1 M, +2 captured,
+REM           +4/5 A, +6/7 B, +8/9 BEST, +10/11 best move at the root,
+REM           +12/13 W
 REM   U=25856 tables: +0 VAL (2 bytes each), +16 CEN, +24 DIR+128,
 REM           +32 NOFF+128, +40 piece letters, +64..+319 on-board flags
-REM           indexed by square+64 (the stand-in for SQ&136, there is no AND)
+REM           indexed by square+64 (the stand-in for SQ&136, there is no AND),
+REM           +320 centre score CS, +448 white pawn PW, +576 black pawn PK,
+REM           each indexed by square
 REM Variables are global, so the recursive search keeps its own state per
-REM ply in the record, copying A (address 130), B (132) and E (138) byte by
-REM byte - which also keeps negative numbers intact.
+REM ply in the record, copying A (address 130), B (132), E (138), M (154)
+REM and W (174) byte by byte - which also keeps negative numbers intact.
 REM
 REM P ply  S side 0/8  D depth left  A alpha  B beta  E best  V value
-REM I move index  N moves  F from  T to  K this ply's list  W next free
-REM L square  Q piece  C type/temp  G target piece  H table  J direction
-REM R last direction/rank  O offset  M temp
+REM N this ply's record  M this move  F from  T to  K this ply's list
+REM W next free  L square  Q piece  C type/temp  G target piece  H table
+REM J direction  R last direction/rank  O offset  I unused
 1 GOTO 9000
-REM ---- GEN: moves for side S at ply P, into K..W
-100 K=Y+P*192
-110 W=K
+REM ---- GEN: moves for side S, from K up to W
+100 W=K
 120 L=0
 130 Q=PEEK(Z+L)
 140 IF Q=0 GOTO 190
@@ -38,9 +44,8 @@ REM ---- GEN: moves for side S at ply P, into K..W
 160 IF Q<8 IF S=8 GOTO 190
 170 GOSUB 300
 190 L=L+1
-200 IF L-L/16*16=8 L=L+8
+200 IF PEEK(U+128+L)=0 L=L+8
 210 IF L<128 GOTO 130
-220 POKE X+P*16+3,(W-K)/2
 230 RETURN
 REM ---- GENP: the piece Q on L
 300 C=Q
@@ -83,14 +88,15 @@ REM ---- GSLIDE: directions J..R until something is hit
 780 RETURN
 REM ---- GPAWN
 800 O=16
-810 C=1
+810 C=16
 820 IF S=8 O=-16
-830 IF S=8 C=6
+830 IF S=8 C=96
 840 T=L+O
 850 IF PEEK(U+128+T)=0 GOTO 900
 860 IF PEEK(Z+T)>0 GOTO 900
 870 GOSUB 500
-880 IF L/16<>C GOTO 900
+880 IF L<C GOTO 900
+882 IF L>C+7 GOTO 900
 885 T=T+O
 890 IF PEEK(Z+T)=0 GOSUB 500
 900 T=L+O-1
@@ -107,120 +113,130 @@ REM ---- EVAL: material and position for white, into M
 1530 IF Q=0 GOTO 1640
 1540 C=Q
 1550 IF Q>8 C=Q-8
-1560 V=PEEK(U+C*2)+PEEK(U+C*2+1)*256
-1570 R=L/16
+1560 H=U+C+C
+1562 POKE 172,PEEK(H+1)
+1564 POKE 173,PEEK(H)
 1580 IF C=1 GOTO 1620
 1590 IF C=6 GOTO 1630
-1600 V=V+(PEEK(U+16+L-R*16)+PEEK(U+16+R))*3
+1600 V=V+PEEK(U+320+L)
 1610 GOTO 1630
-1620 IF Q>8 R=7-R
-1625 V=V+R*4
+1620 IF Q<8 V=V+PEEK(U+448+L)
+1625 IF Q>8 V=V+PEEK(U+576+L)
 1630 IF Q>8 V=-V
 1635 M=M+V
 1640 L=L+1
-1650 IF L-L/16*16=8 L=L+8
+1650 IF PEEK(U+128+L)=0 L=L+8
 1660 IF L<128 GOTO 1520
 1670 RETURN
-REM ---- SEARCH(P,S,D,A,B) into V
+REM ---- SEARCH(P,S,D,A,B) into V, the list from K, the record at N
 2000 IF D>0 GOTO 2030
 2010 GOSUB 1500
 2015 V=M
 2020 IF S=8 V=-M
 2025 RETURN
 2030 GOSUB 100
-2035 C=X+P*16
-2040 POKE C+6,PEEK(132)
-2045 POKE C+7,PEEK(133)
-2050 I=0
+2040 POKE N+6,PEEK(132)
+2045 POKE N+7,PEEK(133)
+2050 POKE N+12,PEEK(174)
+2052 POKE N+13,PEEK(175)
 2055 E=-30000
-2060 N=PEEK(C+3)
-2070 IF I>=N GOTO 2400
-2080 M=Y+P*192+I*2
+2060 M=K
+2070 IF M>=W GOTO 2400
 2090 F=PEEK(M)
 2100 T=PEEK(M+1)
-2120 POKE C+2,PEEK(Z+T)
+2120 POKE N+2,PEEK(Z+T)
 2130 POKE Z+T,PEEK(Z+F)
 2140 POKE Z+F,0
-2150 POKE C+4,PEEK(130)
-2160 POKE C+5,PEEK(131)
-2190 POKE C+8,PEEK(138)
-2200 POKE C+9,PEEK(139)
-2210 POKE C+1,I
+2150 POKE N+4,PEEK(130)
+2160 POKE N+5,PEEK(131)
+2190 POKE N+8,PEEK(138)
+2200 POKE N+9,PEEK(139)
+2210 POKE N,PEEK(154)
+2215 POKE N+1,PEEK(155)
 2220 P=P+1
+2225 N=N+16
 2230 S=8-S
 2240 D=D-1
+2245 K=W
 2250 M=A
 2255 A=-B
 2260 B=-M
 2265 GOSUB 2000
 2270 P=P-1
+2272 N=N-16
 2275 S=8-S
 2280 D=D+1
 2285 V=-V
-2290 C=X+P*16
-2292 POKE 130,PEEK(C+4)
-2293 POKE 131,PEEK(C+5)
-2294 POKE 132,PEEK(C+6)
-2295 POKE 133,PEEK(C+7)
-2296 POKE 138,PEEK(C+8)
-2297 POKE 139,PEEK(C+9)
-2298 I=PEEK(C+1)
-2299 N=PEEK(C+3)
-2300 IF I>=N GOTO 2400
-2310 M=Y+P*192+I*2
+2292 POKE 130,PEEK(N+4)
+2293 POKE 131,PEEK(N+5)
+2294 POKE 132,PEEK(N+6)
+2295 POKE 133,PEEK(N+7)
+2296 POKE 138,PEEK(N+8)
+2297 POKE 139,PEEK(N+9)
+2298 POKE 154,PEEK(N)
+2299 POKE 155,PEEK(N+1)
+2300 POKE 174,PEEK(N+12)
+2305 POKE 175,PEEK(N+13)
 2320 F=PEEK(M)
 2330 T=PEEK(M+1)
 2340 POKE Z+F,PEEK(Z+T)
-2350 POKE Z+T,PEEK(C+2)
+2350 POKE Z+T,PEEK(N+2)
 2360 IF V>E E=V
 2370 IF E>A A=E
-2380 IF A>=B I=N
-2390 I=I+1
+2380 IF A>=B M=W
+2390 M=M+2
 2395 GOTO 2070
 2400 V=E
 2410 RETURN
-REM ---- BESTMV(S,D): the best index into X+10, 255 for none
+REM ---- BESTMV(S,D): the best move's address into X+10, 0 for none
 3000 P=0
-3010 GOSUB 100
-3020 C=X
-3040 POKE C+1,0
+3005 N=X
+3010 K=Y
+3015 GOSUB 100
+3020 POKE N+12,PEEK(174)
+3025 POKE N+13,PEEK(175)
+3030 M=K
 3045 E=-30000
-3050 POKE C+8,PEEK(138)
-3055 POKE C+9,PEEK(139)
-3060 POKE C+10,255
-3070 I=PEEK(C+1)
-3075 IF I>=PEEK(C+3) RETURN
-3080 M=Y+I*2
+3060 POKE N+10,0
+3065 POKE N+11,0
+3070 IF M>=W RETURN
 3085 F=PEEK(M)
 3090 T=PEEK(M+1)
-3095 POKE C+2,PEEK(Z+T)
+3095 POKE N+2,PEEK(Z+T)
 3100 POKE Z+T,PEEK(Z+F)
 3105 POKE Z+F,0
+3106 POKE N,PEEK(154)
+3107 POKE N+1,PEEK(155)
+3108 POKE N+8,PEEK(138)
+3109 POKE N+9,PEEK(139)
 3110 P=1
+3112 N=N+16
 3115 S=8-S
 3120 D=D-1
+3122 K=W
 3125 A=-30000
 3130 B=30000
 3135 GOSUB 2000
 3140 P=0
+3142 N=N-16
 3145 S=8-S
 3150 D=D+1
 3155 V=-V
-3160 C=X
-3165 I=PEEK(C+1)
-3170 M=Y+I*2
+3160 POKE 154,PEEK(N)
+3165 POKE 155,PEEK(N+1)
+3170 POKE 174,PEEK(N+12)
+3172 POKE 175,PEEK(N+13)
 3175 F=PEEK(M)
 3180 T=PEEK(M+1)
 3185 POKE Z+F,PEEK(Z+T)
-3190 POKE Z+T,PEEK(C+2)
-3195 POKE 138,PEEK(C+8)
-3200 POKE 139,PEEK(C+9)
+3190 POKE Z+T,PEEK(N+2)
+3195 POKE 138,PEEK(N+8)
+3200 POKE 139,PEEK(N+9)
 3205 IF V<=E GOTO 3230
 3210 E=V
-3215 POKE C+8,PEEK(138)
-3220 POKE C+9,PEEK(139)
-3225 POKE C+10,I
-3230 POKE C+1,I+1
+3215 POKE N+10,PEEK(154)
+3220 POKE N+11,PEEK(155)
+3230 M=M+2
 3235 GOTO 3070
 REM ---- SHOW: the board, rank 8 first
 7000 R=7
@@ -294,6 +310,14 @@ REM ---- SETUP: tables and the opening position
 8340 IF T-T/16*16<8 POKE U+128+T,1
 8350 T=T+1
 8360 IF T<192 GOTO 8310
+8370 L=0
+8375 R=L/16
+8380 F=L-R*16
+8385 POKE U+320+L,(PEEK(U+16+F)+PEEK(U+16+R))*3
+8390 POKE U+448+L,R*4
+8392 POKE U+576+L,(7-R)*4
+8394 L=L+1
+8396 IF L<128 GOTO 8375
 8400 L=0
 8410 POKE Z+L,0
 8420 L=L+1
@@ -324,8 +348,8 @@ REM ---- main
 9070 S=0
 9080 D=2
 9090 GOSUB 3000
-9100 I=PEEK(X+10)
-9110 M=Y+I*2
+9100 POKE 154,PEEK(X+10)
+9110 POKE 155,PEEK(X+11)
 9120 F=PEEK(M)
 9130 T=PEEK(M+1)
 9140 PLOT 97+F-F/16*16

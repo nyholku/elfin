@@ -12,11 +12,29 @@ opening position with white to move. Each program prints the board, finds the
 best move with negamax alpha-beta (two ply deep by default), makes it, and
 prints the board again. Both answer **b1c3** and print the same text.
 
-- `chess-bench.txt` is ElFin: `chess.txt`'s subroutines unchanged, with a main
-  program that only does the above.
+- `chess-bench.txt` is ElFin: `chess.txt`'s engine, with a main program that
+  only does the above.
 - `chess.bas` is Tiny BASIC. It's the same board (0x88), the same move
   generator, evaluation and search, in the same move order, so it reaches the
   same move by the same tree.
+
+## Both are written the way a 1978 programmer would have written them
+
+Neither search multiplies or divides, because nobody counting cycles then
+would have. Both programs are the same in this, and so is the tree they
+search:
+
+- A move is a from byte and a to byte, not `FROM*256+TO`.
+- The ply lists are one stack, each starting where the one below it ends, so
+  nothing is indexed by `PLY*96`.
+- The position scores (centre, and a white or black pawn's rank) are tables
+  that setup builds once. There's no `SQ/16` and no `*3` or `*4`.
+- ElFin finds a pawn's home rank with `SQ&240`. Tiny BASIC has no AND, so it
+  compares a range.
+
+This took a fifth off ElFin's search, where the divide loop was costly, and
+2% off Tiny BASIC's. Its multiply and divide are machine code inside the
+interpreter, and the cost there is in reading the program text.
 
 ## Tiny BASIC was given every advantage a good programmer would give it
 
@@ -34,6 +52,11 @@ statement per line. The port is written the way the language wants:
 - `tbload.py` drops every REM and every blank outside a string, because the
   interpreter re-reads the program text each time it runs a line.
 - Move making and unmaking are inlined in the search instead of called.
+- The per-ply record and the current move are pointers, stepped by 16 and by
+  2, instead of `X+P*16` and `Y+P*192+I*2`.
+- The board scan skips the off-board half of each rank with the on-board
+  table, and a piece's value is copied into V as raw bytes instead of
+  `*256`.
 
 ## How it is measured
 
@@ -57,18 +80,19 @@ Ctrl-R runs before every run, is counted separately.
 ## Results
 
 ElFin as of this branch (executor after the call, INDEX and statement-layer
-work). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf.
+work). Times are machine cycles ÷ 220,000, i.e. a 1.76 MHz Elf. ElFin runs
+almost no 3-cycle instructions, so its cycles are its instructions × 2.
 
 | | Tiny BASIC | ElFin | Tiny BASIC ÷ ElFin |
 |---|---|---|---|
-| setup and first board | 73.0M cycles (5 min 32 s) | 0.57M (2.6 s) | 127× |
-| depth 1: search, move, board | 336.8M (25 min 31 s) | 11.1M (51 s) | 30× |
-| depth 2: search, move, board | 6,616.8M (8 h 21 min) | 217.9M (16 min 30 s) | 30× |
-| **whole run, depth 2** | **6,689.9M (8 h 27 min)** | **218.5M (16 min 33 s)** | **31×** |
-| ElFin's compile before the run | none | 14.0M (64 s) | |
+| setup and first board | 105.9M cycles (8 min 1 s) | 1.47M (6.7 s) | 72× |
+| depth 1: search, move, board | 329.3M (24 min 57 s) | 8.64M (39 s) | 38× |
+| depth 2: search, move, board | 6,429.7M (8 h 7 min) | 167.4M (12 min 41 s) | 38× |
+| **whole run, depth 2** | **6,535.6M (8 h 15 min)** | **168.8M (12 min 47 s)** | **39×** |
+| ElFin's compile before the run | none | 11.1M (50 s) | |
 
-Instructions for the whole run, for the record: at depth 2, 3,317.9M for Tiny
-BASIC and 109.2M for ElFin; at depth 1, 203.3M and 5.86M.
+Instructions for the whole run, for the record: at depth 2, 3,240.8M for
+Tiny BASIC and 84.4M for ElFin; at depth 1, 215.8M and 5.05M.
 
 Every number in this table comes from the simulator, not from Emma. The 1802
 has no wait states and no cache, and every instruction takes a fixed 2 or 3
@@ -77,9 +101,12 @@ anything. It doesn't include the 300-baud serial time: about 17 s at depth 1
 for 465 characters. It also doesn't include the DMA cycles a video display
 would steal.
 
-The setup line shows the language more than the engine. It's 300 or so
-POKEs and loops that every GOTO reaches by scanning the program from the top.
-The search is the fair comparison, and it's 30× in both depths.
+The setup row shows the language more than the engine. It's 300 or so POKEs
+and loops that every GOTO reaches by scanning the program from the top. The
+search is the fair comparison, and it's 38× at both depths.
+
+Before the programs were rewritten without multiply and divide, the search
+was 30×: 336.8M cycles for Tiny BASIC at depth 1 and 11.1M for ElFin.
 
 ## On Emma 02
 
@@ -108,7 +135,9 @@ this. Its reset hook types CR LF down the line, and a start bit arriving
 during a run is Tiny BASIC's Break key.
 
 Emma only checks that the images run on an emulated Elf and print the same
-thing; it doesn't time them. Emma has no clock to read, so a run is bracketed instead. It is quit after a
+thing; it doesn't time them. Emma has no clock to read, so a run is bracketed instead. These Emma runs
+were made with the earlier version of both programs, the one that still
+multiplied and divided. It is quit after a
 set time, and its terminal log shows whether it had finished. Depth 1:
 
 | | predicted | Emma |

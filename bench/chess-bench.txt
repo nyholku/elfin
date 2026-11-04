@@ -3,21 +3,34 @@
 # two ply deep, and the board after it.  bench/chess.bas is the same thing in
 # Netronics Tiny BASIC; bench/README.md compares the two.
 #
-# The subroutines below are chess.txt's, unchanged.
+# The engine is chess.txt's, written the way a programmer who counted cycles
+# would have written it, and so is the Tiny BASIC one: the search never
+# multiplies or divides.
+#  - A move is two words, MVF and MVT, not FROM*256+TO.
+#  - The ply lists are one stack: ply P's moves are MVF/MVT[MS[P]] up to
+#    MS[P+1], so nothing is indexed by PLY*96.
+#  - The position scores are tables made once by SETUP: CS for the centre,
+#    PW and PK for a white and a black pawn's rank.
+#  - A pawn's home rank is tested as SQ&240, the rank times 16.
 DIM BRD[128]
-DIM MV[576]
-DIM MC[8]
+DIM MVF[576]
+DIM MVT[576]
+DIM MS[9]
 DIM CAP[8]
 DIM VAL[7]
 DIM CEN[8]
+DIM CS[128]
+DIM PW[128]
+DIM PK[128]
+NM=0
 DEPTH=2
 SETUP()
 SHOW()
 OUTS("THINKING")
 OUTS($"0D0A")
 MOVE=BESTMV(0,DEPTH)
-SHOWMV(MOVE)
-DOMV(0,MOVE)
+SHOWMV(MVF[MOVE],MVT[MOVE])
+DOMV(0,MVF[MOVE],MVT[MOVE])
 SHOW()
 OUTS("DONE")
 OUTS($"0D0A")
@@ -45,9 +58,16 @@ DEF SETUP()
  CEN[5]=2
  CEN[6]=1
  CEN[7]=0
+ GLOBAL CS
+ GLOBAL PW
+ GLOBAL PK
  I=0
  WHILE I<128
   BRD[I]=0
+  R=I/16
+  CS[I]=(CEN[I&7]+CEN[R])*3
+  PW[I]=R*4
+  PK[I]=(7-R)*4
   I=I+1
  BACK=$"04000200030005000600030002000400"
  I=0
@@ -57,6 +77,8 @@ DEF SETUP()
   BRD[96+I]=9
   BRD[112+I]=BACK[I]+8
   I=I+1
+ GLOBAL MS
+ MS[0]=0
 
 DEF SHOW()
  GLOBAL BRD
@@ -80,51 +102,53 @@ DEF SHOW()
  OUTS($"0D0A")
 
 # ---- move generation ------------------------------------------------
-# A move is packed into one word: FROM*256 + TO.  Both are 0x88 squares and
-# so fit in a byte, which is the other thing the layout buys.
+# GEN puts ply PLY's moves on top of the move stack, from MS[PLY], and sets
+# MS[PLY+1] to where they end.  NM is the next free entry.
 
-DEF ADDMV(PLY,FR,TO,SD)
- GLOBAL BRD
- GLOBAL MV
- GLOBAL MC
+DEF ADDMV(FR,TO,SD)
+ GLOBAL MVF
+ GLOBAL MVT
+ GLOBAL NM
  Q=BRD[TO]
  IF Q>0
   IF (Q&8)==SD
    RETURN
- N=MC[PLY]
- MV[PLY*96+N]=FR*256+TO
- MC[PLY]=N+1
+ MVF[NM]=FR
+ MVT[NM]=TO
+ NM=NM+1
 
 DEF GEN(PLY,SD)
  GLOBAL BRD
- GLOBAL MC
- MC[PLY]=0
+ GLOBAL MS
+ GLOBAL NM
+ NM=MS[PLY]
  SQ=0
  WHILE SQ<128
   IF (SQ&136)==0
    P=BRD[SQ]
    IF P>0
     IF (P&8)==SD
-     GENP(PLY,SQ,P,SD)
+     GENP(SQ,P,SD)
   SQ=SQ+1
+ MS[PLY+1]=NM
 
-DEF GENP(PLY,SQ,P,SD)
+DEF GENP(SQ,P,SD)
  T=P&7
  IF T==1
-  GPAWN(PLY,SQ,SD)
+  GPAWN(SQ,SD)
  IF T==2
-  GHOP(PLY,SQ,SD,1)
+  GHOP(SQ,SD,1)
  IF T==3
-  GSLIDE(PLY,SQ,SD,4,7)
+  GSLIDE(SQ,SD,4,7)
  IF T==4
-  GSLIDE(PLY,SQ,SD,0,3)
+  GSLIDE(SQ,SD,0,3)
  IF T==5
-  GSLIDE(PLY,SQ,SD,0,7)
+  GSLIDE(SQ,SD,0,7)
  IF T==6
-  GHOP(PLY,SQ,SD,0)
+  GHOP(SQ,SD,0)
 
 # One step in each direction: the king walks DIR, the knight NOFF.
-DEF GHOP(PLY,SQ,SD,K)
+DEF GHOP(SQ,SD,K)
  GLOBAL DIR
  GLOBAL NOFF
  D=0
@@ -135,10 +159,10 @@ DEF GHOP(PLY,SQ,SD,K)
    O=NOFF[D]-128
   T=SQ+O
   IF (T&136)==0
-   ADDMV(PLY,SQ,T,SD)
+   ADDMV(SQ,T,SD)
   D=D+1
 
-DEF GSLIDE(PLY,SQ,SD,A,B)
+DEF GSLIDE(SQ,SD,A,B)
  GLOBAL BRD
  GLOBAL DIR
  D=A
@@ -149,7 +173,7 @@ DEF GSLIDE(PLY,SQ,SD,A,B)
   WHILE G==1
    IF (T&136)==0
     Q=BRD[T]
-    ADDMV(PLY,SQ,T,SD)
+    ADDMV(SQ,T,SD)
     IF Q>0
      G=0
     T=T+O
@@ -157,65 +181,45 @@ DEF GSLIDE(PLY,SQ,SD,A,B)
     G=0
   D=D+1
 
-DEF GPAWN(PLY,SQ,SD)
+# H is the home rank times 16, which is what SQ&240 gives.
+DEF GPAWN(SQ,SD)
  GLOBAL BRD
  O=16
- H=1
+ H=16
  IF SD>0
   O=0-16
-  H=6
+  H=96
  T=SQ+O
  IF (T&136)==0
   IF BRD[T]==0
-   ADDMV(PLY,SQ,T,SD)
-   IF (SQ/16)==H
+   ADDMV(SQ,T,SD)
+   IF (SQ&240)==H
     IF BRD[T+O]==0
-     ADDMV(PLY,SQ,T+O,SD)
+     ADDMV(SQ,T+O,SD)
  D=0-1
  WHILE D<2
   T=SQ+O+D
   IF (T&136)==0
    IF BRD[T]>0
-    ADDMV(PLY,SQ,T,SD)
+    ADDMV(SQ,T,SD)
   D=D+2
 
 # ---- making and unmaking --------------------------------------------
 # The captured piece is kept per ply, which is all this needs to undo: no
 # castling rights, no en passant square, no promotion yet.
 
-DEF DOMV(PLY,M)
+DEF DOMV(PLY,F,T)
  GLOBAL BRD
  GLOBAL CAP
- T=M&255
  CAP[PLY]=BRD[T]
- BRD[T]=BRD[M/256]
- BRD[M/256]=0
+ BRD[T]=BRD[F]
+ BRD[F]=0
 
-DEF UNDOMV(PLY,M)
+DEF UNDOMV(PLY,F,T)
  GLOBAL BRD
  GLOBAL CAP
- T=M&255
- BRD[M/256]=BRD[T]
+ BRD[F]=BRD[T]
  BRD[T]=CAP[PLY]
-
-# PERFT: count the leaves of the move tree, which is how a move generator
-# is checked - the numbers for the opening position are known.
-DEF PERFT(PLY,SD,D)
- GLOBAL MV
- GLOBAL MC
- IF D==0
-  RETURN 1
- GEN(PLY,SD)
- N=MC[PLY]
- I=0
- S=0
- WHILE I<N
-  M=MV[PLY*96+I]
-  DOMV(PLY,M)
-  S=S+PERFT(PLY+1,8-SD,D-1)
-  UNDOMV(PLY,M)
-  I=I+1
- RETURN S
 
 # ---- evaluation and search ------------------------------------------
 
@@ -224,7 +228,6 @@ DEF PERFT(PLY,SD,D)
 DEF EVAL()
  GLOBAL BRD
  GLOBAL VAL
- GLOBAL CEN
  S=0
  SQ=0
  WHILE SQ<128
@@ -243,16 +246,14 @@ DEF EVAL()
 # every line scoring the same, and the search then plays whichever move the
 # generator happened to produce first - rooks shuffling on the back rank.
 DEF SCORE(SQ,P)
- GLOBAL CEN
  T=P&7
- R=SQ/16
- IF (P&8)>0
-  R=7-R
  IF T==1
-  RETURN R*4
+  IF (P&8)>0
+   RETURN PK[SQ]
+  RETURN PW[SQ]
  IF T==6
   RETURN 0
- RETURN (CEN[SQ&7]+CEN[SQ/16])*3
+ RETURN CS[SQ]
 
 # The same, from the side to move's point of view, which is what negamax
 # wants: one routine searches for both colours because the score is always
@@ -264,19 +265,19 @@ DEF EVALS(SD)
  RETURN V
 
 DEF SEARCH(PLY,SD,D,A,B)
- GLOBAL MV
- GLOBAL MC
+ GLOBAL MS
  IF D==0
   RETURN EVALS(SD)
  GEN(PLY,SD)
- N=MC[PLY]
- I=0
+ I=MS[PLY]
+ N=MS[PLY+1]
  BEST=0-30000
  WHILE I<N
-  M=MV[PLY*96+I]
-  DOMV(PLY,M)
+  F=MVF[I]
+  T=MVT[I]
+  DOMV(PLY,F,T)
   V=0-SEARCH(PLY+1,8-SD,D-1,0-B,0-A)
-  UNDOMV(PLY,M)
+  UNDOMV(PLY,F,T)
   IF V>BEST
    BEST=V
   IF BEST>A
@@ -286,111 +287,32 @@ DEF SEARCH(PLY,SD,D,A,B)
   I=I+1
  RETURN BEST
 
+# The index of the best move in ply 0's list.
 DEF BESTMV(SD,D)
- GLOBAL MV
- GLOBAL MC
+ GLOBAL MS
  GEN(0,SD)
- N=MC[0]
- I=0
+ I=MS[0]
+ N=MS[1]
  BEST=0-30000
- R=0
+ R=0-1
  WHILE I<N
-  M=MV[I]
-  DOMV(0,M)
+  F=MVF[I]
+  T=MVT[I]
+  DOMV(0,F,T)
   V=0-SEARCH(1,8-SD,D-1,0-30000,30000)
-  UNDOMV(0,M)
+  UNDOMV(0,F,T)
   IF V>BEST
    BEST=V
-   R=M
+   R=I
   I=I+1
  RETURN R
 
-DEF SHOWMV(M)
- F=M/256
- T=M&255
+DEF SHOWMV(F,T)
  PUTCH(97+(F&7))
  PUTCH(49+(F/16))
  PUTCH(97+(T&7))
  PUTCH(49+(T/16))
  OUTS($"0D0A")
-
-# ---- your side of it --------------------------------------------------
-# The generator is the rulebook: a move you type is a move only if it is in
-# the list GEN produced for this position, which costs one pass over at most
-# a hundred words and saves the board from a typed move that no piece could
-# make.
-
-DEF ASKMV(SD)
- GLOBAL MV
- GLOBAL MC
- GEN(0,SD)
- N=MC[0]
- IF N==0
-  RETURN 0
- M=0
- WHILE M==0
-  OUTS("YOUR MOVE?")
-  OUTS($"0D0A")
-  FR=RDSQ()
-  IF FR<0
-   RETURN 0
-  TO=RDSQ()
-  IF TO<0
-   RETURN 0
-  OUTS($"0D0A")
-  M=FIND(FR*256+TO,N)
-  IF M==0
-   OUTS("NOT ONE OF YOUR MOVES")
-   OUTS($"0D0A")
- RETURN M
-
-DEF FIND(M,N)
- GLOBAL MV
- I=0
- WHILE I<N
-  IF MV[I]==M
-   RETURN M
-  I=I+1
- RETURN 0
-
-# One square: a file letter and then a rank digit, each waited for until it
-# arrives.  Only the two characters it accepts are echoed, so a return or a
-# slipped key leaves nothing on the line to unsee.  Q anywhere gives up, and
-# -1 is how that is told apart from a1, which is square 0.
-DEF RDSQ()
- F=0-1
- WHILE F<0
-  C=UPCH()
-  IF C==81
-   RETURN 0-1
-  IF C>=65
-   IF C<=72
-    F=C-65
-    PUTCH(C+32)
- R=0-1
- WHILE R<0
-  C=UPCH()
-  IF C==81
-   RETURN 0-1
-  IF C>=49
-   IF C<=56
-    R=C-49
-    PUTCH(C)
- RETURN R*16+F
-
-# Lower case reads as upper, and Ctrl-Q reads as Q.  Ctrl-Q is what quits the
-# editor, so it is the key this system already means "give up" by, and it is
-# also what the reference hands back for ever once its input has run out -
-# which is what turns a piped game that ends without a Q into a game that
-# ends rather than a loop that does not.
-DEF UPCH()
- C=GETCH()
- IF C==17
-  RETURN 81
- IF C>96
-  IF C<123
-   RETURN C-32
- RETURN C
 
 DEF PUTCH(C) $000D
 DEF GETCH() $000F
