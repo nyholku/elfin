@@ -28,3 +28,6 @@ asm/elfin/inline.lst
 
 # run-editor.sh compiles the Java editor prototype here
 build/
+
+# bench/run-bench.sh builds here
+bench/out/
