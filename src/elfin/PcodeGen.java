@@ -694,7 +694,7 @@ public class PcodeGen {
 	// is inlined FROM ITS OWN SOURCE, so editing isDigit() in ElFin.java
 	// changes the generated code with no change here.
 	static final Set<String> NATIVE = new HashSet<String>(
-			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND", "STMTEND", "SCANEOL", "NEXTDEF",
+			Arrays.asList("m16", "rd8", "wr8", "rd16", "wr16", "PUTC", "GETC", "NATIVE", "EXEC_NATIVE", "MEMMOVE", "MEMREV", "LINEEND", "STMTEND", "SCANEOL", "NEXTDEF", "FUSE",
 					"STORAGE", "UNSTMT",
 					"dput", "DPUTN", "DPUTL", "DPUTKW", "DPUTSYM", "DECOUT", "TERMDEC", "HEXOUT", "PUTR"));
 
@@ -1130,7 +1130,7 @@ public class PcodeGen {
 			push(-1);
 			return;
 		}
-		if (n.equals("LINEEND") || n.equals("STMTEND") || n.equals("SCANEOL") || n.equals("NEXTDEF")) {
+		if (n.equals("LINEEND") || n.equals("STMTEND") || n.equals("SCANEOL") || n.equals("NEXTDEF") || n.equals("FUSE")) {
 			// the address on the stack is replaced by the next line's, or by
 			// where this line's statement ends
 			genValue(e.args.get(0));

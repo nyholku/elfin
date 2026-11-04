@@ -114,6 +114,27 @@ public class ElFin {
 	static final int T_HEX2 = 0x52; // <v>
 	static final int T_SPARE53 = 0x53; // was T_SYMX, the escape for wide ids
 
+	// Stores that FUSE makes cheaper.  They exist only in a compiled
+	// image: each replaces one byte of the statement, the bytes after it stay
+	// as they were, and RESTORE_ALL puts the byte back from them.  The opcode's
+	// band says how long it is to everything that walks a line (0x5x has one
+	// byte after it, 0x6x two), so each swallows exactly the bytes that used
+	// to be separate tokens and no line changes length.
+	//
+	// PULLRE <ref>: PULL into the cell the executor's RE already points at.
+	// Every read of a variable leaves RE on the cell it read, and the opcodes
+	// in REKEEP leave RE alone, so when the last variable read before the
+	// PULL is its own target - A=3-A, D=D+2, X=(X+1)&7 - RE is the address.
+	// The executor counts on what REKEEP says; the simulator checks it (see
+	// Pcode's PULLRE guard), so a handler that starts using RE fails the
+	// tests instead of storing somewhere else.
+	static final int T_PULLRE = 0x5B;
+	// A=A+k and A=A-k as one instruction.  ADDK: <ref> <1k> <op> PULL <ref>
+	// with the first <ref> replaced, k 0..15.  ADDK8: the same with an 8-bit
+	// literal, <ref> <5x> <k> <op> PULL <ref>.
+	static final int T_ADDK = 0x5C;
+	static final int T_ADDK8 = 0x6C;
+
 	static final int T_INT16 = 0x60; // <lo><hi>
 	static final int T_HEX3 = 0x61;
 	static final int T_HEX4 = 0x62;
@@ -2294,6 +2315,67 @@ public class ElFin {
 		while (M[a & 0xFFFF] != EOL && M[a & 0xFFFF] != 0)
 			a++;
 		return a & 0xFFFF;
+	}
+
+	// FUSE: rewrite the store of the compiled statement on the line at `at`
+	// into ADDK, ADDK8 or PULLRE where it can be (see T_PULLRE), and return
+	// `at`.  A SYSCALL to NX_FUSE in exec.inc.s; this is its reference.  The
+	// walk gives up on a string, a byte string or a RAW, which only costs
+	// the rewrite: a statement left alone is always right.
+	static int FUSE(int at) {
+		int p = (at + 1) & 0xFFFF;
+		int t0 = M[p];
+		if (t0 >= 0x80) { // A=A+k, A=A-k?
+			int k = M[p + 1], op = -1;
+			if (k >= T_LIT_LO && k <= T_LIT_HI)
+				op = T_ADDK;
+			else if (k >= T_INT8 && k <= T_HEX2)
+				op = T_ADDK8;
+			if (op >= 0) {
+				int q = p + (op == T_ADDK ? 2 : 3);
+				if ((M[q] & 0xFE) == T_ADD && M[q + 1] == T_ASSIGN && M[q + 2] == t0 && M[q + 3] <= T_EOL_HI) {
+					M[p] = op;
+					return at;
+				}
+			}
+		}
+		// PULLRE: is RE still on the target when the PULL runs?
+		int re = 0; // the reference RE is on, or 0 when nothing is known
+		while (M[p] > T_EOL_HI) {
+			int t = M[p];
+			if (t == T_ASSIGN) {
+				if (M[p + 1] == re && M[p + 2] <= T_EOL_HI)
+					M[p] = T_PULLRE;
+				return at;
+			}
+			if (t >= 0x80) {
+				re = t;
+				p += 1;
+				continue;
+			}
+			// REKEEP: the small and 8-bit literals, the comparisons, + - | &
+			// and the unary signs.  Their handlers leave RE alone.  Below
+			// 0x20 is the small literals, the walk having stopped below 0x10
+			// (and the keywords, 0x20..0x24, never get here).
+			if (!(t < 0x20 || t >= T_EQ && t <= T_BOR || t >= T_BAND && t <= T_POS
+					|| t >= T_INT8 && t <= T_HEX2))
+				re = 0;
+			if (t == T_AMP) // &A reads no A: its operand is not a read
+				p += 2;
+			else if (t == T_CALLN)
+				p += 3;
+			else if (t >= T_CALL0 && t < T_CALLN)
+				p += 2;
+			else if (t < 0x50)
+				p += 1;
+			else if (t < 0x60)
+				p += 2;
+			else if (t < 0x70)
+				p += 3;
+			else
+				return at; // a string, a byte string or a RAW: give up
+		}
+		return at;
 	}
 
 	// STMTEND: the same walk, stopping where the statement does - on the
@@ -4603,7 +4685,10 @@ public class ElFin {
 		// PULL; nothing here can tell them apart any more, because a compiled
 		// statement can open with any token at all.
 		COMPILE_REST();
+		if (ERR == 0)
+			T1 = FUSE(LINEADDR);
 	}
+
 
 	// COMPILE_ALL: EDIT -> EXECUTE.
 	//   OUT: every reference rewritten, every block target patched, ERR
@@ -4816,6 +4901,20 @@ public class ElFin {
 			PC = m16(PC + 1);
 			while (rd8(PC) > T_EOL_HI) { // NOERR
 				TOKEN = rd8(PC);
+				// FUSE's opcodes go back to the byte they replaced, and
+				// the loop then sees that byte as it would have
+				if (TOKEN == T_PULLRE) {
+					wr8(PC, T_ASSIGN);
+					continue;
+				}
+				if (TOKEN == T_ADDK) {
+					wr8(PC, rd8(PC + 4));
+					continue;
+				}
+				if (TOKEN == T_ADDK8) {
+					wr8(PC, rd8(PC + 5));
+					continue;
+				}
 				if (TOKEN == T_IF || TOKEN == T_ELSE || TOKEN == T_WHILE) {
 					// clear the branch target so that the restored image is
 					// byte for byte the tokenized one again

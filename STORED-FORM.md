@@ -212,6 +212,31 @@ cell.
 
 `.DIM` pops an array and pushes its length, read from the array's header.
 
+### Stores the compiler makes cheaper
+
+After a line compiles, the compiler rewrites one byte of some assignments
+into an opcode the executor runs faster. All the other bytes stay as they
+were. Each new opcode sits in a band whose length rule covers exactly the
+bytes it takes over, so no line changes length. `RESTORE_ALL` puts the
+original byte back from the bytes that follow it.
+
+```
+as compiled                      fused
+I=I+1     C1  11  36  47  C1     5C  11  36  47  C1       ADDK  1 + PULL I:g1
+D=D-200   C2  50 C8  37  47  C2  6C  50 C8  37  47  C2    ADDK8 200 - PULL D:g2
+A=3-A     13  C0  37  47  C0     13  C0  37  5B  C0       3 A:g0 - PULLRE A:g0
+```
+
+- `ADDK` and `ADDK8` are `A=A+k` and `A=A-k` with `k` a one-byte literal,
+  run as one instruction. They replace the first `A`, which `RESTORE_ALL`
+  copies back from the target after the `PULL`.
+- `PULLRE` replaces a `PULL` whose target was the last variable read in the
+  statement. Reading a variable leaves the executor's register RE on its
+  cell, so the store needs no address. This only holds if every opcode after
+  that read leaves RE alone: the literals `10`-`1F` and `50`-`52`, the
+  comparisons, `+ - | &` and the unary signs. The simulator the tests run on
+  checks RE on every `PULLRE`.
+
 ## Strings and byte strings
 
 ```
@@ -725,6 +750,7 @@ For reference, every token value by band.
 44      & in a DEF, ADDR elsewhere         45      []  array parameter
 46      .DIM                               47      PULL
 50 51 52  INT8 HEX1 HEX2 <1 byte>          60 61 62  INT16 HEX3 HEX4 <2 bytes>
+5B 5C   compiled: PULLRE <ref>, ADDK <1k>  6C      compiled: ADDK8 <5x> <k>
 63 64 65 66  IF ELSE WHILE JUMP <target16>
 70      RAW <len> <errno> <text>           7C 7D   STR / BYTES <bytes16> <bytes, padded to a word>
 80-FF   edited: symbol 0x80+id

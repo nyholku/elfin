@@ -89,6 +89,12 @@ public class Pcode {
 		simu.m_CheckPc = need("NXEV_LOOP"); // R9.1 is the dispatch table's page there: see NXR9
 		simu.m_CheckReg = 9;
 		simu.m_CheckHi = need("NXTAB") >> 8;
+		// PULLRE stores through RE, which the reads before it left on the
+		// target only as long as every handler in between keeps its hands off
+		// RE (ElFin.T_PULLRE).  Here that is checked rather than trusted.
+		simu.m_HookPc = need("NXEV_PULLRE");
+		simu.m_TrackReg = 0xE;
+		simu.m_Hook = this::checkPullRe;
 
 		byte[] image;
 		try {
@@ -374,5 +380,23 @@ public class Pcode {
 
 	public void clearOutput() {
 		out.reset();
+	}
+
+	/** The PULLRE guard: RE must be the cell the PULL after it names. */
+	private void checkPullRe() {
+		int r7 = simu.reg(7);
+		int tok = simu.peek(r7 + 1);
+		int want;
+		if (tok >= 0xC0)
+			want = (simu.reg(0xB) & 0xFF00) | 2 * (tok - 0xC0);
+		else {
+			want = (simu.reg(4) - 2 * (tok & 0x1F)) & 0xFFFF; // FP - 2*slot
+			if ((tok & 0x20) != 0)
+				want = simu.peekWord(want);
+		}
+		if (simu.reg(0xE) != want)
+			throw new IllegalStateException(String.format(
+					"PULLRE at %04X: RE is %04X, not %04X; last written by the instruction at %04X", r7,
+					simu.reg(0xE), want, simu.m_TrackLastWrite));
 	}
 }

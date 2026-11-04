@@ -262,8 +262,18 @@ public class Exec {
 	static void EVAL_LOOP(boolean lvalue) {
 		while (true) {
 			int t = rd8(PC);
-			if (t <= T_EOL_HI || t == T_ASSIGN || t == T_PULLA || t == T_COMMA)
+			if (t <= T_EOL_HI || t == T_ASSIGN || t == T_PULLRE || t == T_PULLA || t == T_COMMA)
 				break;
+			if (t == T_ADDK || t == T_ADDK8) { // A=A+k, A=A-k: FUSE
+				int p = m16(PC + (t == T_ADDK ? 1 : 2)); // on the literal's last byte
+				int k = t == T_ADDK ? rd8(p) & 0x0F : rd8(p);
+				if (rd8(p + 1) == T_SUB)
+					k = -k;
+				int a = VAR_ADDR(rd8(p + 3));
+				wr16(a, m16(rd16(a) + k));
+				PC = m16(p + 4); // on the line end: a statement of its own
+				break;
+			}
 			if (t == T_JUMP) { // the compiler's own, at the end of a block
 				PC = rd16(m16(PC + 1));
 			} else if (t >= T_LIT_LO && t <= T_LIT_HI) { // 0..15, in the token
@@ -679,7 +689,7 @@ public class Exec {
 		EVAL_LOOP(false);
 		int v = SP != sp ? rd16(SP) : 0;
 		SP = sp;
-		if (rd8(PC) == T_ASSIGN) { // PULL: the cell is named by the next byte
+		if (rd8(PC) == T_ASSIGN || rd8(PC) == T_PULLRE) { // PULL: the cell is named by the next byte
 			PC = m16(PC + 1);
 			int cell = rd8(PC);
 			PC = m16(PC + 1);

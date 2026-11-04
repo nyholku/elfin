@@ -68,6 +68,21 @@ public abstract class CDP1802SimuBase extends CDP1802State implements Cloneable 
 	public int m_CheckPc = -1, m_CheckReg, m_CheckHi;
 	private int m_CheckLastWrite = -1;
 
+	/**
+	 * A check of the caller's, run each time the program counter reaches
+	 * m_HookPc, before the instruction there executes. m_TrackReg names a
+	 * register whose last writer is kept in m_TrackLastWrite for the check's
+	 * message; -1 tracks none.
+	 */
+	public int m_HookPc = -1;
+	public Runnable m_Hook;
+	public int m_TrackReg = -1, m_TrackLastWrite = -1;
+
+	/** Register n, all 16 bits. */
+	public int reg(int n) {
+		return R(n);
+	}
+
 	/** Optional per-address instruction counts, for profiling. */
 	public int[] m_AddrCount;
 
@@ -221,6 +236,9 @@ public abstract class CDP1802SimuBase extends CDP1802State implements Cloneable 
 					throw new IllegalStateException(String.format(
 							"R%X.1 is %02X, not %02X, at %04X; last written by the instruction at %04X", m_CheckReg,
 							checkWas, m_CheckHi, pcNow, m_CheckLastWrite));
+				if (pcNow == m_HookPc)
+					m_Hook.run();
+				int trackWas = m_TrackReg < 0 ? 0 : R(m_TrackReg);
 				inc(P, +1);
 				m_Coverage[opcode]++;
 				m_Instructions++;
@@ -229,6 +247,8 @@ public abstract class CDP1802SimuBase extends CDP1802State implements Cloneable 
 				execOpcode(opcode);
 				if (R[1][m_CheckReg] != checkWas)
 					m_CheckLastWrite = pcNow;
+				if (m_TrackReg >= 0 && R(m_TrackReg) != trackWas)
+					m_TrackLastWrite = pcNow;
 				if (VERBOSE) {
 					printState();
 					printDiff("", "", oldState, VERBOSE);

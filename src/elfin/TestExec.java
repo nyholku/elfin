@@ -251,6 +251,9 @@ public class TestExec {
 				"-5", "-5+3", "3+-5", "-(2+3)", "+7", "- -5", //
 				"1<2", "2<1", "1==1", "1!=1", "7>=7", "7<=6", "1|2", "6&3", //
 				"1+2<4", "1<2|3>9", "2*3==6", //
+				// > and <= are signed, and have their own handlers: the edges
+				"5>5", "6>5", "5>6", "-1>1", "1>-1", "$8000>$7FFF", "$7FFF>$8000", "-1>-2", //
+				"5<=5", "6<=5", "5<=6", "-1<=1", "1<=-1", "$8000<=$7FFF", "$7FFF<=$8000", "-2<=-1", //
 				"$FF+1", "$FFFF+1", "10/3", "10%3", "$10", "$1000", //
 				"1+2*3-4/2", "((1+2)*(3+4))%5" };
 		int bad = 0;
@@ -516,6 +519,28 @@ public class TestExec {
 				{ "I=0", "WHILE I<3000", " F(I)", " I=I+1", "PRINT I", "DEF F(X)", " RETURN X" }, //
 				{ "I=0", "WHILE I<3000", " G()", " I=I+1", "PRINT I", "DEF G()", " J=1" }, //
 				{ "I=0", "WHILE I<3000", " KEYHIT()", " I=I+1", "PRINT I", "DEF KEYHIT() $0011" }, //
+				// FUSE: A=A+k as ADDK and ADDK8 - global, local and by reference,
+				// every literal form, k of 0, and both ways round the wrap
+				{ "A=5", "A=A+3", "PRINT A", "A=A-7", "PRINT A", "A=A+0", "A=A-0", "PRINT A", "A=A+200", "PRINT A",
+						"A=A-$FF", "PRINT A", "A=A+$0F", "PRINT A", "A=65535", "A=A+1", "PRINT A", "A=A-1", "PRINT A",
+						"A=A+1000", "PRINT A", "X=1", "F(&X)", "PRINT X", "DEF F(N&)", " L=10", " L=L+5", " L=L-200",
+						" PRINT L", " N=N+15", " N=N-2", " N=N+$80", " PRINT N" }, //
+				// a first assignment in a DEF makes a local, so the two A's are
+				// different cells and nothing may be fused
+				{ "Q=5", "G()", "PRINT Q", "DEF G()", " Q=Q+1", " PRINT Q" }, //
+				// PULLRE: the target is the last variable read, and everything
+				// after that read keeps RE (Pcode's guard checks RE on each)
+				{ "A=1", "B=10", "A=3-A", "PRINT A", "A=B-A", "PRINT A", "A=(A+1)&7", "PRINT A", "A=A", "PRINT A",
+						"A=-A", "PRINT A", "A=2<A", "PRINT A", "A=B|A", "PRINT A", "A=1000-A", "PRINT A", "A=B>=A",
+						"PRINT A", "A=B<=A+1", "PRINT A", "A=B>A", "PRINT A", "A=B!=A", "PRINT A", "A=B==A", "PRINT A",
+						"A=+A", "PRINT A", "A=A", "PRINT A" }, //
+				// and where RE has moved on, nothing may be fused
+				{ "A=7", "A=A-1000", "PRINT A", "A=A*3", "PRINT A", "A=A/2", "PRINT A", "A=A%5", "PRINT A",
+						"A=A+F(1)", "PRINT A", "A=F(A)+A", "PRINT A", "A=G(&A)", "PRINT A", "A=G(&A)+A", "PRINT A",
+						"DIM C[3]", "C[1]=4", "A=C[A-A+1]", "PRINT A", "A=C.DIM+A", "PRINT A", "A=A+C[1]", "PRINT A",
+						"S=\"HI\"", "A=S.DIM+A", "PRINT A", "DEF F(X)", " RETURN X+1", "DEF G(P&)", " P=P+1",
+						" RETURN 2" }, //
+				{ "X=1", "H(&X)", "PRINT X", "DEF H(N&)", " L=4", " L=9-L", " PRINT L", " N=5-N", " N=L+N", " PRINT N" }, //
 		};
 		int bad = 0;
 		for (String[] prog : progs)

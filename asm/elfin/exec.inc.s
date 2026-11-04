@@ -296,6 +296,15 @@ NXCALLF   MACRO ADDR,RETL
 
 ; PUSHRET addr - push a return address, as a call would, for code that then
 ; falls into the routine it is calling.
+; NXCALLS retl - NX_EVAL from the statement layer's page, by NXSL_EVJ.
+NXCALLS   MACRO RETL
+          LDI   lo(RETL)
+          STXD
+          LDI   hi(RETL)
+          STXD
+          BR    NXSL_EVJ
+          ENDM
+
 PUSHRET   MACRO ADDR
           LDI   lo(ADDR)
           STXD
@@ -528,6 +537,27 @@ SGE       MACRO
           XRI   080h
           SDB                   ; DF = 1 when a >= b.  SDB, not SMB: it is the
           DEC   R8              ; partner of SD, which subtracts the other way
+          SEX   R2
+          ENDM
+
+; SLE - as SGE with the subtraction the other way round, b - a: DF = 1 when
+; a <= b, signed.
+SLE       MACRO
+          SEX   R8              ; a and b are on the runtime stack
+          LDA   R8
+          PLO   RF
+          LDA   R8
+          PHI   RF              ; b, popped; R8 on a's low byte
+          GLO   RF
+          SM                    ; b.lo - a.lo, for the borrow
+          INC   R8
+          LDN   R8
+          XRI   080h
+          STR   R8
+          GHI   RF
+          XRI   080h
+          SMB                   ; DF = 1 when b >= a
+          DEC   R8
           SEX   R2
           ENDM
 
@@ -1024,18 +1054,12 @@ NXC_LT
           SGE                   ; a < b is not (a >= b)
           PUTNDF
           NXRET
-NXEV_LE
-          INC   R7
-          PUSHRET NXEV_LOOP
 NXC_LE
           NXCALLI NX_XCHG,NXK9 ; a <= b is b >= a
 NXK9
           SGE
           PUTDF
           NXRET
-NXEV_GT
-          INC   R7
-          PUSHRET NXEV_LOOP
 NXC_GT
           NXCALLI NX_XCHG,NXK10 ; a > b is not (b >= a)
 NXK10
@@ -1088,6 +1112,12 @@ NXK10
           KEEPIN 080h           ; the loop and the reads it branches to
 NX_EVAL_LV
           LDN   R7
+          BR    NXLV_1
+; The statement layer's way in, at the offset NXSL_EVJ's PHI R3 lands on:
+; see there.  The FATAL after NXSL_EVJ keeps the two in step.
+NXEV_STMT
+          BR    NXEV_LOOP
+NXLV_1
           PLO   RC
           SMI   080h
           BNF   NXEV_LVEXPR     ; not a reference: it must be A[i]
@@ -1231,8 +1261,16 @@ NXA_ENTER
           NXCALLF NX_APPLY,NXEV_LOOP ; its NXRET is the way back to the loop
 
 
+; The end of an expression: back to whoever called NX_EVAL.  NX_RETN's pop,
+; done here: SEP R5 and the branch NX_RETN ends with were two instructions
+; more on every statement there is.
 NXEV_DONE
-          NXRET
+          IRX
+          LDXA
+          PHI   R3
+          LDX
+          PLO   R3
+          SEP   R3
 
 ; == and != - on R6 from start to finish.  They were a pushed return, a call
 ; to NX_SEQ, its return and the loop's: two trips through NX_RETN and
@@ -1298,6 +1336,20 @@ NXEV_LT
 NXEV_GE
           INC   R7
           SGE
+          PUTDF
+          NXDONE6
+
+; > and <= the same way, with the subtraction turned round instead of the
+; operands swapped on the stack: through NX_XCHG they cost a call, a swap and
+; two trips through NX_RETN, nearly three times what < does.
+NXEV_GT
+          INC   R7
+          SLE                   ; a > b is not (a <= b)
+          PUTNDF
+          NXDONE6
+NXEV_LE
+          INC   R7
+          SLE
           PUTDF
           NXDONE6
 
@@ -1593,6 +1645,84 @@ NXEVP_SLOW
           GHI   RD
           STR   RE
           NXDONE6
+
+; PULLRE <ref> - FUSE's PULL, for a statement whose last variable read
+; was its own target.  That read left RE on the cell (NXEV_REF and NXRL_VALUE
+; both end with RE on its low byte), and nothing since has moved it: the
+; compiler only emits this when every opcode in between is one of these,
+; which leave RE alone -
+;
+;   REKEEP: LIT4 LIT8, == != < > <= >=, + - | &, unary - and +
+;
+; A handler on that list that starts using RE breaks this, so the simulator
+; checks RE against the target on every PULLRE the tests run (Pcode.java).
+NXEV_PULLRE
+          INC   R7              ; past the opcode
+          INC   R7              ; and the target, which RE already is
+          LDA   R8              ; the value, straight off the stack
+          STR   RE
+          INC   RE
+          LDA   R8
+          STR   RE
+          NXDONE6
+
+; ADDK / ADDK8 - A=A+k and A=A-k, which FUSE made one instruction out of
+; four by replacing the first A.  The rest of the statement is still there,
+; and is where the operands are read from:
+;
+;   ADDK   1k op PULL A           k 0..15
+;   ADDK8  5x k op PULL A         k 0..255
+;
+; R7 ends on the line end, as the PULL would have left it.  The cell is worked
+; out as PULL does it; k is in RF because LOCADDR uses RD.  It runs on R6,
+; where there are no far forms, so it keeps to one page.
+          KEEPIN 048h
+NXEV_ADDK
+          INC   R7
+          LDA   R7              ; 1k
+          ANI   00Fh
+          BR    NXAK_K
+NXEV_ADDK8
+          INC   R7
+          INC   R7              ; past the 5x
+          LDA   R7
+NXAK_K
+          PLO   RF
+          LDI   0
+          PHI   RF
+          LDA   R7              ; + or -
+          XRI   037h            ; T_SUB
+          BNZ   NXAK_OP
+          GLO   RF              ; RF = -k
+          SDI   0
+          PLO   RF
+          LDI   0
+          SDBI  0
+          PHI   RF
+NXAK_OP
+          INC   R7              ; past the PULL
+          LDA   R7              ; the target - R7 is on the line end now
+          PLO   RC
+          SMI   0C0h            ; T_SYM: DF = a global
+          BNF   NXAK_LOC
+          SHL                   ; 2*cell, the band being page aligned
+          PLO   RE
+          GHI   RB
+          PHI   RE
+NXAK_ADD
+          SEX   RE
+          GLO   RF
+          ADD
+          STR   RE
+          INC   RE
+          GHI   RF
+          ADC
+          STR   RE
+          SEX   R2
+          NXDONE6
+NXAK_LOC
+          LOCADDR NXAK_LOCRE
+          BR    NXAK_ADD
 
 NXEV_PULLA
           INC   R7
@@ -2076,7 +2206,14 @@ NX_ELEM_ADDR
           GHI   RA
           SHLC
           PHI   RF
-          BDF   NXEA_RANGE      ; an index past 7FFF is past any array
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBDF  NXEA_RANGE      ; an index past 7FFF is past any array
           GLO   RC              ; and 2*index must be below the bytes; a
           STR   R2              ; negative index is a huge one, and fails the
           GLO   RF              ; same test
@@ -2285,12 +2422,15 @@ NXK31
           PHI   RD
 NXPI_POS
           GLO   RD
-          BNZ   NXPI_START
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBNZ  NXPI_START
           GHI   RD
-          BNZ   NXPI_START
+          FBNZ  NXPI_START
           LDI   030h            ; '0'
           PLO   RC
-          NXTAIL NX_PUTC
+          NXTAILF NX_PUTC
 NXPI_START
           ST16  NX_PV,RD
           LDI   0
@@ -2341,6 +2481,9 @@ NXPI_DIG
           LD16  RD,NX_PQ        ; v = q
           ST16  NX_PV,RD
           GLO   RD
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
           FBNZ  NXPI_DIG
           GHI   RD
           FBNZ  NXPI_DIG
@@ -2372,7 +2515,7 @@ NXPI_EMIT
           PLO   RC
           NXCALLF NX_PUTC,NXK33
 NXK33
-          BR    NXPI_OUT
+          FBR   NXPI_OUT
 NXPI_DONE
           NXRET
 
@@ -2490,7 +2633,7 @@ NXED_LOCAL
 NXK48
           INC   R7              ; past the reference and the '['
           INC   R7
-          NXCALLI NX_LIT_AT,NXK49 ; RD = the element count
+          NXCALLF NX_LIT_AT,NXK49 ; RD = the element count
 NXK49
           GLO   RD              ; 2*count: the header, the array's size in bytes
           SHL
@@ -2572,6 +2715,20 @@ NXED_OUT
 ; program.  A RETURN just returns, and the end of the program goes straight
 ; to NX_STOP, as an error does.
           KEEPIN 0F0h           ; the statement layer's hot path, one page
+; NXSL_EVJ - into NX_EVAL from this page, the return address already pushed.
+;
+; NXCALLF's jump goes through NX_RETN, seven instructions on top of its own
+; nine, and every statement made one.  This page and NX_EVAL's are fixed
+; distances into their pages instead, so a PHI R3 is the jump: it changes the
+; page the next fetch comes from and not the offset, and the offset after it
+; is where NX_EVAL_LV keeps a branch to the loop (NXEV_STMT).  NXCALLS is
+; how this page calls it.
+NXSL_EVJ
+          LDI   hi(NXEV_STMT)
+          PHI   R3              ; the next fetch is NXEV_STMT
+        IF lo($) <> lo(NXEV_STMT)
+          FATAL "NXSL_EVJ's PHI R3 no longer lands on NXEV_STMT"
+        ENDIF
 NX_RUN_LINES
 ; NX_STEP_LINE - execute one line.  R7 is on its header.
 NX_STEP_LINE
@@ -2641,7 +2798,7 @@ NXSL_COND
           STXD                  ; from the line onto the stack
           LDA   R7
           STXD
-          NXCALLF NX_EVAL,NXK54
+          NXCALLS NXK54
 NXK54
           LDA   R8              ; the condition off the stack, its two bytes
           STR   R2              ; ORed: zero only when it is
@@ -2670,7 +2827,7 @@ NXSL_CONDT
 ; the line ending, and know the call is a statement of its own.  R8 used to
 ; be saved here and put back afterwards to throw such a value away.
 NXSL_EXPR                       ; R7 on the first token
-          NXCALLF NX_EVAL,NXSL_NEXT
+          NXCALLS NXSL_NEXT
 NXSL_NEXT
           NEXTLNF NXNLA
           BR    NX_RUN_LINES  ; the line loop, inlined
@@ -2703,7 +2860,7 @@ NXSL_TRETURN
           FBNZ  NXSL_BADTOK
           LDN   R7
           SMI   010h
-          FBDF  NXSL_RETVAL
+          BDF   NXSL_RETVAL
           LDI   0
           PLO   RD
           PHI   RD
@@ -3243,7 +3400,10 @@ NXK88
           STR   RE              ; and R2 on argc, which is dropped
           NXCALLF NX_ISSTMT,NXK88S
 NXK88S
-          BDF   NXK88X          ; F(X) on a line of its own: nothing wants it
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          SEX   R2              ; pad: a far branch off the page end
+          FBDF  NXK88X          ; F(X) on a line of its own: nothing wants it
           LD16  RD,NX_RETVAL
           PUSHR RD
 NXK88X
@@ -3709,4 +3869,137 @@ NXMM_BK
           GHI   RA
           BNZ   NXMM_BK
 NXMM_OUT
+          SEP   R3
+
+; NX_FUSE - the compiler's rewrite of a store into ADDK, ADDK8 or PULLRE (see
+; NXEV_PULLRE and NXEV_ADDK).  ElFin.FUSE is the reference.  The address of
+; the line's header is on the stack and stays there as the answer.  A SYSCALL:
+; on R9 with X = R8.  RC walks the statement, RD.0 is the token, RF.1 the
+; reference RE would be on (0 = none), and M(R2) a scratch byte.
+          KEEPIN 0ACh           ; its size: it runs on R9, so no far forms
+NX_FUSE
+          LDA   R8
+          PLO   RC
+          LDN   R8
+          PHI   RC
+          DEC   R8              ; the answer is the argument
+          INC   RC              ; on the first token
+          SEX   R2              ; X = R2 for the XORs against M(R2)
+          LDI   0
+          PHI   RF
+          ; A=A+k: <ref> <1k|5x k> <+|-> PULL <ref> <end>
+          LDN   RC
+          STR   R2              ; the first token, to compare the target with
+          SHL
+          BNF   NXFU_TOK        ; not a reference
+          GLO   RC
+          PLO   RE
+          GHI   RC
+          PHI   RE
+          INC   RE
+          LDA   RE              ; the literal
+          ANI   0F0h
+          XRI   010h
+          BZ    NXFU_K4
+          DEC   RE
+          LDA   RE
+          SMI   050h
+          SMI   3
+          BDF   NXFU_TOK        ; not 50h..52h either
+          INC   RE              ; past its payload
+          LDI   06Ch            ; T_ADDK8
+          BR    NXFU_KOP
+NXFU_K4
+          LDI   05Ch            ; T_ADDK
+NXFU_KOP
+          PLO   RF
+          LDA   RE
+          ANI   0FEh
+          XRI   036h            ; T_ADD or T_SUB
+          BNZ   NXFU_TOK
+          LDA   RE
+          XRI   047h            ; T_ASSIGN
+          BNZ   NXFU_TOK
+          LDA   RE
+          XOR                   ; the same reference as the first
+          BNZ   NXFU_TOK
+          LDN   RE
+          SMI   010h
+          BDF   NXFU_TOK        ; and the statement ends there
+          GLO   RF
+          STR   RC              ; the first byte becomes the opcode
+          BR    NXFU_OUT
+NXFU_TOK                        ; PULLRE: the walk
+          LDN   RC
+          PLO   RD
+          SMI   010h
+          BNF   NXFU_OUT        ; the statement ended with no PULL
+          GLO   RD
+          XRI   047h            ; T_ASSIGN
+          BZ    NXFU_PULL
+          GLO   RD
+          SHL
+          BNF   NXFU_OP
+          GLO   RD              ; a reference: RE will be on it
+          PHI   RF
+          INC   RC
+          BR    NXFU_TOK
+NXFU_OP
+          GLO   RD              ; REKEEP?  x is 10h or more here, so the
+          SMI   020h            ; literals are below 20h; after that each test
+          BNF   NXFU_1          ; is x-lo, then -n, and a borrow on the second
+          GLO   RD              ; means lo <= x < lo+n
+          SMI   030h
+          SMI   009h
+          BNF   NXFU_LEN        ; 30h..38h  == != < > <= >= + - |
+          GLO   RD
+          SMI   03Ch
+          SMI   003h
+          BNF   NXFU_LEN        ; 3Ch..3Eh  & and the unary signs
+          GLO   RD
+          SMI   050h
+          SMI   003h
+          BNF   NXFU_LEN        ; 50h..52h
+          LDI   0
+          PHI   RF              ; anything else may move RE
+          GLO   RD
+          XRI   044h            ; T_AMP: its operand is not a read
+          BZ    NXFU_2
+NXFU_LEN
+          GLO   RD
+          SMI   025h
+          BNF   NXFU_1          ; the literals
+          SMI   00Ah
+          BNF   NXFU_2          ; CALLn <callee>
+          BZ    NXFU_3          ; CALLN <arity> <callee>
+          GLO   RD
+          SMI   050h
+          BNF   NXFU_1          ; operators
+          SMI   010h
+          BNF   NXFU_2          ; one payload byte
+          SMI   010h
+          BDF   NXFU_OUT        ; a string, bytes or RAW: give up
+NXFU_3
+          INC   RC
+NXFU_2
+          INC   RC
+NXFU_1
+          INC   RC
+          BR    NXFU_TOK
+NXFU_PULL
+          INC   RC
+          GHI   RF
+          STR   R2
+          LDA   RC              ; the target
+          XOR
+          BNZ   NXFU_OUT        ; not the reference RE is on, or none
+          LDN   RC
+          SMI   010h
+          BDF   NXFU_OUT        ; PULL is not the last thing on the line
+          DEC   RC
+          DEC   RC
+          LDI   05Bh            ; T_PULLRE
+          STR   RC
+NXFU_OUT
+          SEX   R8
           SEP   R3

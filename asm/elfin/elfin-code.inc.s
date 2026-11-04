@@ -23,7 +23,7 @@
 ; one byte pCALL, the rest a two byte pCALLX.
 
 ;------------------------------------------------------------------
-; SYM_GET_FLAGS   (ElFin.java:552)
+; SYM_GET_FLAGS   (ElFin.java:573)
 ;
         DEFSUB N_SYM_GET_FLAGS
         pCALL   N_SYM_PTR
@@ -35,7 +35,7 @@
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_SET_FLAGS   (ElFin.java:557)
+; SYM_SET_FLAGS   (ElFin.java:578)
 ;
         DEFSUB N_SYM_SET_FLAGS
         pCALL   N_SYM_PTR
@@ -47,7 +47,7 @@
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_ESC   (ElFin.java:2579)
+; TERM_ESC   (ElFin.java:2661)
 ;
         DEFSUB N_TERM_ESC
         pLIT8   27                ; 27
@@ -57,7 +57,7 @@
         pRETN
 
 ;------------------------------------------------------------------
-; ED_GAPSKIP   (ElFin.java:2664)
+; ED_GAPSKIP   (ElFin.java:2746)
 ;
         DEFSUB N_ED_GAPSKIP
         pPUSH   N_PC
@@ -70,7 +70,7 @@ LED_GAPSKIP_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_STEP   (ElFin.java:2670)
+; ED_STEP   (ElFin.java:2752)
 ;
         DEFSUB N_ED_STEP
         pCALL   N_SKIP_LINE
@@ -78,7 +78,7 @@ LED_GAPSKIP_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ENDTOK   (ElFin.java:893)
+; ENDTOK   (ElFin.java:914)
 ;
         DEFSUB N_ENDTOK
         pINC    N_TOKNO
@@ -132,7 +132,7 @@ LENDTOK_9:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT1   (ElFin.java:918)
+; EMIT1   (ElFin.java:939)
 ;
         DEFSUB N_EMIT1
         pPUSH   N_TEMIT
@@ -154,7 +154,7 @@ LEMIT1_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_LEAVE   (ElFin.java:2530)
+; ED_LEAVE   (ElFin.java:2612)
 ;
         DEFSUB N_ED_LEAVE
         pBRNE8  N_EDIRTY,0,LED_LEAVE_0
@@ -173,7 +173,7 @@ LED_LEAVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_PTR   (ElFin.java:537)
+; SYM_PTR   (ElFin.java:558)
 ;
         DEFSUB N_SYM_PTR
         pPUSH   N_MEM_TOP
@@ -187,7 +187,7 @@ LED_LEAVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SKIP_LINE   (ElFin.java:2260)
+; SKIP_LINE   (ElFin.java:2281)
 ;
         DEFSUB N_SKIP_LINE
         pPUSH   N_PC
@@ -196,7 +196,7 @@ LED_LEAVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_GOTO   (ElFin.java:2591)
+; TERM_GOTO   (ElFin.java:2673)
 ;
         DEFSUB N_TERM_GOTO
         pCALL   N_TERM_ESC
@@ -217,7 +217,7 @@ LED_LEAVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_SET_VALUE   (ElFin.java:567)
+; SYM_SET_VALUE   (ElFin.java:588)
 ;
         DEFSUB N_SYM_SET_VALUE
         pCALL   N_SYM_PTR
@@ -229,7 +229,7 @@ LED_LEAVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SCAN_IDENT   (ElFin.java:784)
+; SCAN_IDENT   (ElFin.java:805)
 ;
         DEFSUB N_SCAN_IDENT
         pPUSH   N_SRC
@@ -268,7 +268,7 @@ LSCAN_IDENT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_SYMREF   (ElFin.java:926)
+; EMIT_SYMREF   (ElFin.java:947)
 ;
         DEFSUB N_EMIT_SYMREF
         pCALLX  N_SYM_ADD
@@ -298,7 +298,7 @@ LEMIT_SYMREF_1:
         pRETN
 
 ;------------------------------------------------------------------
-; DETOK_RENDER   (ElFin.java:3955)
+; DETOK_RENDER   (ElFin.java:4037)
 ;
         DEFSUB N_DETOK_RENDER
         pPUSH   N_PC
@@ -435,7 +435,7 @@ LDETOK_RENDER_13:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_EDIT   (ElFin.java:2547)
+; ED_EDIT   (ElFin.java:2629)
 ;
         DEFSUB N_ED_EDIT
         pBREQ8  N_EDIRTY,0,LED_EDIT_0
@@ -454,7 +454,7 @@ LED_EDIT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_REF_AT   (ElFin.java:4076)
+; SYM_REF_AT   (ElFin.java:4158)
 ;
         DEFSUB N_SYM_REF_AT
         pPUSH   N_PC
@@ -478,7 +478,7 @@ LSYM_REF_AT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; GAP_CLOSE   (ElFin.java:2192)
+; GAP_CLOSE   (ElFin.java:2213)
 ;
         DEFSUB N_GAP_CLOSE
         pPUSH   N_CODE_END
@@ -503,7 +503,7 @@ LSYM_REF_AT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_CLEAR   (ElFin.java:2604)
+; TERM_CLEAR   (ElFin.java:2686)
 ;
         DEFSUB N_TERM_CLEAR
         pCALL   N_TERM_ESC
@@ -517,7 +517,7 @@ LSYM_REF_AT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_CURLINE   (ElFin.java:2767)
+; ED_CURLINE   (ElFin.java:2849)
 ;
         DEFSUB N_ED_CURLINE
         pPUSH   N_ESCROLL
@@ -542,7 +542,7 @@ LED_CURLINE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_RETOP   (ElFin.java:3186)
+; ED_RETOP   (ElFin.java:3268)
 ;
         DEFSUB N_ED_RETOP
         pPUSH   N_CODE_LO
@@ -568,7 +568,7 @@ LED_RETOP_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_CHARS   (ElFin.java:543)
+; SYM_CHARS   (ElFin.java:564)
 ;
         DEFSUB N_SYM_CHARS
         pCALL   N_SYM_PTR
@@ -581,7 +581,7 @@ LED_RETOP_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SKIP_ITEM   (ElFin.java:2225)
+; SKIP_ITEM   (ElFin.java:2246)
 ;
         DEFSUB N_SKIP_ITEM
         pPUSH   N_PC
@@ -666,7 +666,7 @@ LSKIP_ITEM_6:
         pRETN
 
 ;------------------------------------------------------------------
-; SCAN_HEX   (ElFin.java:845)
+; SCAN_HEX   (ElFin.java:866)
 ;
         DEFSUB N_SCAN_HEX
         pLIT8   0                ; 0
@@ -743,7 +743,7 @@ LSCAN_HEX_6:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_HEX   (ElFin.java:956)
+; EMIT_HEX   (ElFin.java:977)
 ;
         DEFSUB N_EMIT_HEX
         pBRNE8  N_TOKLEN,1,LEMIT_HEX_1
@@ -920,7 +920,7 @@ LEMIT_HEX_0:
         pRETN
 
 ;------------------------------------------------------------------
-; EXPECT_EOL   (ElFin.java:1305)
+; EXPECT_EOL   (ElFin.java:1326)
 ;
         DEFSUB N_EXPECT_EOL
         pBREQ8  N_ERR,0,LEXPECT_EOL_0
@@ -940,7 +940,7 @@ LEXPECT_EOL_1:
         pRETN
 
 ;------------------------------------------------------------------
-; NEED_EXPR   (ElFin.java:1316)
+; NEED_EXPR   (ElFin.java:1337)
 ;
         DEFSUB N_NEED_EXPR
         pCALLX  N_EXPR_TOK
@@ -954,7 +954,7 @@ LNEED_EXPR_0:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_POPOP   (ElFin.java:1803)
+; PF_POPOP   (ElFin.java:1824)
 ;
         DEFSUB N_PF_POPOP
         pLIT16  N_LASTOFF
@@ -979,7 +979,7 @@ LNEED_EXPR_0:
         pRETN
 
 ;------------------------------------------------------------------
-; TOKENIZE_LINE_OR_RAW   (ElFin.java:2078)
+; TOKENIZE_LINE_OR_RAW   (ElFin.java:2099)
 ;
         DEFSUB N_TOKENIZE_LINE_OR_RAW
         pCALLX  N_TOKENIZE_LINE
@@ -1073,7 +1073,7 @@ LTOKENIZE_LINE_OR_RAW_10:
         pRETN
 
 ;------------------------------------------------------------------
-; GAP_MARK   (ElFin.java:2136)
+; GAP_MARK   (ElFin.java:2157)
 ;
         DEFSUB N_GAP_MARK
         pPUSH   N_GAP_LO
@@ -1088,7 +1088,7 @@ LGAP_MARK_0:
         pRETN
 
 ;------------------------------------------------------------------
-; GAP_NEED   (ElFin.java:2149)
+; GAP_NEED   (ElFin.java:2170)
 ;
         DEFSUB N_GAP_NEED
         pPUSH   N_GAP_HI
@@ -1137,7 +1137,7 @@ LGAP_NEED_1:
         pRETN
 
 ;------------------------------------------------------------------
-; APPEND_LINE   (ElFin.java:2206)
+; APPEND_LINE   (ElFin.java:2227)
 ;
         DEFSUB N_APPEND_LINE
         pBREQ8  N_ERR,0,LAPPEND_LINE_0
@@ -1166,7 +1166,7 @@ LAPPEND_LINE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_EOL   (ElFin.java:2599)
+; TERM_EOL   (ElFin.java:2681)
 ;
         DEFSUB N_TERM_EOL
         pCALL   N_TERM_ESC
@@ -1175,7 +1175,7 @@ LAPPEND_LINE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_PAINT_LINE   (ElFin.java:3016)
+; ED_PAINT_LINE   (ElFin.java:3098)
 ;
         DEFSUB N_ED_PAINT_LINE
         pPUSH   N_EROW
@@ -1222,7 +1222,7 @@ LED_PAINT_LINE_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ADD_LOCAL   (ElFin.java:4120)
+; ADD_LOCAL   (ElFin.java:4202)
 ;
         DEFSUB N_ADD_LOCAL
         pLIT8   31                ; 31
@@ -1267,7 +1267,7 @@ LADD_LOCAL_0:
         pRETN
 
 ;------------------------------------------------------------------
-; GLOB_CELL   (ElFin.java:4089)
+; GLOB_CELL   (ElFin.java:4171)
 ;
         DEFSUB N_GLOB_CELL
         pCALL   N_SYM_GET_FLAGS
@@ -1312,7 +1312,7 @@ LGLOB_CELL_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_WAITKEY   (ElFin.java:3172)
+; ED_WAITKEY   (ElFin.java:3254)
 ;
         DEFSUB N_ED_WAITKEY
         pLIT8   13                ; 13
@@ -1342,7 +1342,7 @@ LED_WAITKEY_1:
         pRETN
 
 ;------------------------------------------------------------------
-; STORE_BOUNDS   (ElFin.java:503)
+; STORE_BOUNDS   (ElFin.java:524)
 ;
         DEFSUB N_STORE_BOUNDS
         pLIT8   3                ; 3
@@ -1368,7 +1368,7 @@ LSTORE_BOUNDS_0:
         pRETN
 
 ;------------------------------------------------------------------
-; STORE_EMPTY   (ElFin.java:516)
+; STORE_EMPTY   (ElFin.java:537)
 ;
         DEFSUB N_STORE_EMPTY
         pLIT16  N_SYM_TAB
@@ -1397,7 +1397,7 @@ LSTORE_BOUNDS_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_GET_VALUE   (ElFin.java:562)
+; SYM_GET_VALUE   (ElFin.java:583)
 ;
         DEFSUB N_SYM_GET_VALUE
         pCALL   N_SYM_PTR
@@ -1409,7 +1409,7 @@ LSTORE_BOUNDS_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SCAN_SPACES   (ElFin.java:774)
+; SCAN_SPACES   (ElFin.java:795)
 ;
         DEFSUB N_SCAN_SPACES
         pLIT8   0                ; 0
@@ -1427,7 +1427,7 @@ LSCAN_SPACES_1:
         pRETN
 
 ;------------------------------------------------------------------
-; KW_MATCH   (ElFin.java:795)
+; KW_MATCH   (ElFin.java:816)
 ;
         DEFSUB N_KW_MATCH
         pLIT8   0                ; 0
@@ -1503,7 +1503,7 @@ LKW_MATCH_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SCAN_NUMBER   (ElFin.java:820)
+; SCAN_NUMBER   (ElFin.java:841)
 ;
         DEFSUB N_SCAN_NUMBER
         pLIT8   0                ; 0
@@ -1571,7 +1571,7 @@ LSCAN_NUMBER_4:
         pRETN
 
 ;------------------------------------------------------------------
-; TAIL_ADD   (ElFin.java:871)
+; TAIL_ADD   (ElFin.java:892)
 ;
         DEFSUB N_TAIL_ADD
         pLIT16  06100h
@@ -1633,7 +1633,7 @@ LTAIL_ADD_1:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_NUMBER   (ElFin.java:937)
+; EMIT_NUMBER   (ElFin.java:958)
 ;
         DEFSUB N_EMIT_NUMBER
         pLIT8   15                ; 15
@@ -1750,7 +1750,7 @@ LEMIT_NUMBER_0:
         pRETN
 
 ;------------------------------------------------------------------
-; LIT_HEADER   (ElFin.java:1016)
+; LIT_HEADER   (ElFin.java:1037)
 ;
         DEFSUB N_LIT_HEADER
 ;   --- inline emit ---
@@ -1792,7 +1792,7 @@ LLIT_HEADER_2:
         pRETN
 
 ;------------------------------------------------------------------
-; LIT_PAD   (ElFin.java:1022)
+; LIT_PAD   (ElFin.java:1043)
 ;
         DEFSUB N_LIT_PAD
         pPUSH   N_T2
@@ -1818,7 +1818,7 @@ LLIT_PAD_0:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_BYTESTRING   (ElFin.java:1029)
+; EMIT_BYTESTRING   (ElFin.java:1050)
 ;
         DEFSUB N_EMIT_BYTESTRING
         pPUSH   N_SRC
@@ -1994,7 +1994,7 @@ LEMIT_BYTESTRING_9:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_COPY   (ElFin.java:1632)
+; EMIT_COPY   (ElFin.java:1653)
 ;
         DEFSUB N_EMIT_COPY
         pLIT16  06100h
@@ -2020,7 +2020,7 @@ LEMIT_COPY_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SKIP_WIDTH   (ElFin.java:1785)
+; SKIP_WIDTH   (ElFin.java:1806)
 ;
         DEFSUB N_SKIP_WIDTH
         pBRNE8  N_T3,47,LSKIP_WIDTH_1
@@ -2095,7 +2095,7 @@ LSKIP_WIDTH_0:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_PUT   (ElFin.java:1772)
+; PF_PUT   (ElFin.java:1793)
 ;
         DEFSUB N_PF_PUT
         pLIT16  N_LASTOFF
@@ -2121,7 +2121,7 @@ LPF_PUT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_TOMARK   (ElFin.java:1923)
+; PF_TOMARK   (ElFin.java:1944)
 ;
         DEFSUB N_PF_TOMARK
 LPF_TOMARK_0:
@@ -2151,7 +2151,7 @@ LPF_TOMARK_1:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_PREC   (ElFin.java:1759)
+; PF_PREC   (ElFin.java:1780)
 ;
         DEFSUB N_PF_PREC
         pLIT8   0                ; 0
@@ -2198,7 +2198,7 @@ LPF_PREC_0:
         pRETN
 
 ;------------------------------------------------------------------
-; GAP_MOVE   (ElFin.java:2171)
+; GAP_MOVE   (ElFin.java:2192)
 ;
         DEFSUB N_GAP_MOVE
         pPUSH   N_T1
@@ -2245,7 +2245,7 @@ LGAP_MOVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_JOIN_NEXT   (ElFin.java:2445)
+; ED_JOIN_NEXT   (ElFin.java:2527)
 ;
         DEFSUB N_ED_JOIN_NEXT
         pPUSH   N_GAP_HI
@@ -2308,7 +2308,7 @@ LED_JOIN_NEXT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_NUM   (ElFin.java:2586)
+; TERM_NUM   (ElFin.java:2668)
 ;
         DEFSUB N_TERM_NUM
         pPUSH   N_ENUM
@@ -2317,7 +2317,7 @@ LED_JOIN_NEXT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_SCROLL   (ElFin.java:2627)
+; TERM_SCROLL   (ElFin.java:2709)
 ;
         DEFSUB N_TERM_SCROLL
         pCALL   N_TERM_ESC
@@ -2365,7 +2365,7 @@ LTERM_SCROLL_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_UP   (ElFin.java:2812)
+; ED_UP   (ElFin.java:2894)
 ;
         DEFSUB N_ED_UP
         pBREQ8  N_ECROW,0,LED_UP_0
@@ -2413,7 +2413,7 @@ LED_UP_3:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_DELETE_AT   (ElFin.java:2909)
+; ED_DELETE_AT   (ElFin.java:2991)
 ;
         DEFSUB N_ED_DELETE_AT
         pPUSH   N_T3
@@ -2455,7 +2455,7 @@ LED_DELETE_AT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_KEY   (ElFin.java:2969)
+; ED_KEY   (ElFin.java:3051)
 ;
         DEFSUB N_ED_KEY
         pPUSH   N_EKEY
@@ -2535,7 +2535,7 @@ LED_KEY_11:
         pRETN
 
 ;------------------------------------------------------------------
-; INSERT_AT   (ElFin.java:4274)
+; INSERT_AT   (ElFin.java:4356)
 ;
         DEFSUB N_INSERT_AT
         pPUSH   N_GAP_LO
@@ -2570,7 +2570,7 @@ LINSERT_AT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; BLK_PUSH   (ElFin.java:4243)
+; BLK_PUSH   (ElFin.java:4325)
 ;
         DEFSUB N_BLK_PUSH
         pLIT16  N_CPTR
@@ -2601,7 +2601,7 @@ LBLK_PUSH_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SLOT_OF   (ElFin.java:4109)
+; SLOT_OF   (ElFin.java:4191)
 ;
         DEFSUB N_SLOT_OF
         pCALL   N_SYM_GET_FLAGS
@@ -2621,7 +2621,7 @@ LSLOT_OF_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_REPORT   (ElFin.java:3153)
+; ED_REPORT   (ElFin.java:3235)
 ;
         DEFSUB N_ED_REPORT
         pBRNE8  N_ERR,0,LED_REPORT_0
@@ -2656,7 +2656,7 @@ LED_REPORT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_PAINT   (ElFin.java:3204)
+; ED_PAINT   (ElFin.java:3286)
 ;
         DEFSUB N_ED_PAINT
         pBREQ8  N_ESCRD,0,LED_PAINT_0
@@ -2679,7 +2679,7 @@ LED_PAINT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_STOREDONE   (ElFin.java:3558)
+; ED_STOREDONE   (ElFin.java:3640)
 ;
         DEFSUB N_ED_STOREDONE
         pLIT8   4                ; 4
@@ -2699,7 +2699,7 @@ LED_STOREDONE_0:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_FIND   (ElFin.java:578)
+; SYM_FIND   (ElFin.java:599)
 ;
         DEFSUB N_SYM_FIND
         pLIT8   0                ; 0
@@ -2782,7 +2782,7 @@ LSYM_FIND_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_MARK_USED   (ElFin.java:630)
+; SYM_MARK_USED   (ElFin.java:651)
 ;
         DEFSUB N_SYM_MARK_USED
 LSYM_MARK_USED_0:
@@ -2821,7 +2821,7 @@ LSYM_MARK_USED_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_GC   (ElFin.java:646)
+; SYM_GC   (ElFin.java:667)
 ;
         DEFSUB N_SYM_GC
         pLIT8   0                ; 0
@@ -2880,7 +2880,7 @@ LSYM_GC_3:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_REUSE   (ElFin.java:675)
+; SYM_REUSE   (ElFin.java:696)
 ;
         DEFSUB N_SYM_REUSE
         pLIT8   0                ; 0
@@ -2907,7 +2907,7 @@ LSYM_REUSE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_CHARS_PUT   (ElFin.java:688)
+; SYM_CHARS_PUT   (ElFin.java:709)
 ;
         DEFSUB N_SYM_CHARS_PUT
         pPUSH   N_SYM_CHR
@@ -2967,7 +2967,7 @@ LSYM_CHARS_PUT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_ADD   (ElFin.java:713)
+; SYM_ADD   (ElFin.java:734)
 ;
         DEFSUB N_SYM_ADD
         pCALLX  N_SYM_FIND
@@ -3062,7 +3062,7 @@ LSYM_ADD_6:
         pRETN
 
 ;------------------------------------------------------------------
-; EMIT_STRING   (ElFin.java:981)
+; EMIT_STRING   (ElFin.java:1002)
 ;
         DEFSUB N_EMIT_STRING
         pINC    N_SRC
@@ -3144,7 +3144,7 @@ LEMIT_STRING_7:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_OPERATOR   (ElFin.java:1205)
+; TOK_OPERATOR   (ElFin.java:1226)
 ;
         DEFSUB N_TOK_OPERATOR
         pLIT8   0                ; 0
@@ -3317,7 +3317,7 @@ LTOK_OPERATOR_31:
         pRETN
 
 ;------------------------------------------------------------------
-; EXPR_ITEM   (ElFin.java:1082)
+; EXPR_ITEM   (ElFin.java:1103)
 ;
         DEFSUB N_EXPR_ITEM
         pPUSH   N_SRC
@@ -3515,7 +3515,7 @@ LEXPR_ITEM_20:
         pRETN
 
 ;------------------------------------------------------------------
-; EXPR_TOK   (ElFin.java:1275)
+; EXPR_TOK   (ElFin.java:1296)
 ;
         DEFSUB N_EXPR_TOK
         pLIT8   0                ; 0
@@ -3567,7 +3567,7 @@ LEXPR_TOK_8:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_ARGLIST   (ElFin.java:1326)
+; TOK_ARGLIST   (ElFin.java:1347)
 ;
         DEFSUB N_TOK_ARGLIST
         pPUSH   N_SRC
@@ -3626,7 +3626,7 @@ LTOK_ARGLIST_3:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_PARAMLIST   (ElFin.java:1364)
+; TOK_PARAMLIST   (ElFin.java:1385)
 ;
         DEFSUB N_TOK_PARAMLIST
         pPUSH   N_SRC
@@ -3741,7 +3741,7 @@ LTOK_PARAMLIST_3:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_DEF   (ElFin.java:1417)
+; TOK_DEF   (ElFin.java:1438)
 ;
         DEFSUB N_TOK_DEF
         pLIT8   32                ; 32
@@ -3819,7 +3819,7 @@ LTOK_DEF_4:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_KEYWORD   (ElFin.java:1455)
+; TOK_KEYWORD   (ElFin.java:1476)
 ;
         DEFSUB N_TOK_KEYWORD
         pBRNE8  N_KWTOK,32,LTOK_KEYWORD_0
@@ -4054,7 +4054,7 @@ LTOK_KEYWORD_31:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_AFTER_IDENT   (ElFin.java:1557)
+; TOK_AFTER_IDENT   (ElFin.java:1578)
 ;
         DEFSUB N_TOK_AFTER_IDENT
         pPUSH   N_SRC
@@ -4113,7 +4113,7 @@ LTOK_AFTER_IDENT_4:
         pRETN
 
 ;------------------------------------------------------------------
-; TOKENIZE_STMT   (ElFin.java:1594)
+; TOKENIZE_STMT   (ElFin.java:1615)
 ;
         DEFSUB N_TOKENIZE_STMT
         pPUSH   N_SRC
@@ -4146,7 +4146,7 @@ LTOKENIZE_STMT_3:
         pRETN
 
 ;------------------------------------------------------------------
-; TOK_COMMENT   (ElFin.java:1617)
+; TOK_COMMENT   (ElFin.java:1638)
 ;
         DEFSUB N_TOK_COMMENT
         pPUSH   N_SRC
@@ -4169,7 +4169,7 @@ LTOK_COMMENT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; TAIL_EMIT   (ElFin.java:1642)
+; TAIL_EMIT   (ElFin.java:1663)
 ;
         DEFSUB N_TAIL_EMIT
         pBRNE8  N_TAILN,0,LTAIL_EMIT_0
@@ -4289,7 +4289,7 @@ LTAIL_EMIT_13:
         pRETN
 
 ;------------------------------------------------------------------
-; PAREN_ADD   (ElFin.java:1813)
+; PAREN_ADD   (ElFin.java:1834)
 ;
         DEFSUB N_PAREN_ADD
         pLIT16  06100h
@@ -4324,7 +4324,7 @@ LPAREN_ADD_0:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_CLOSE   (ElFin.java:1933)
+; PF_CLOSE   (ElFin.java:1954)
 ;
         DEFSUB N_PF_CLOSE
         pCALLX  N_PF_TOMARK
@@ -4435,7 +4435,7 @@ LPF_CLOSE_4:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_OPER   (ElFin.java:1879)
+; PF_OPER   (ElFin.java:1900)
 ;
         DEFSUB N_PF_OPER
         pPUSH   N_T2
@@ -4497,7 +4497,7 @@ LPF_OPER_1:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_OPERAND   (ElFin.java:1898)
+; PF_OPERAND   (ElFin.java:1919)
 ;
         DEFSUB N_PF_OPERAND
         pPUSH   N_PFS
@@ -4577,7 +4577,7 @@ LPF_OPERAND_1:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_RANGE   (ElFin.java:1825)
+; PF_RANGE   (ElFin.java:1846)
 ;
         DEFSUB N_PF_RANGE
         pLIT16  N_PFBASE
@@ -4715,7 +4715,7 @@ LPF_RANGE_18:
         pRETN
 
 ;------------------------------------------------------------------
-; PF_STMT   (ElFin.java:1994)
+; PF_STMT   (ElFin.java:2015)
 ;
         DEFSUB N_PF_STMT
         pLIT16  06000h
@@ -4866,7 +4866,7 @@ LPF_STMT_13:
         pRETN
 
 ;------------------------------------------------------------------
-; TOKENIZE_LINE   (ElFin.java:1680)
+; TOKENIZE_LINE   (ElFin.java:1701)
 ;
         DEFSUB N_TOKENIZE_LINE
         pPUSH   N_SRC
@@ -5013,7 +5013,7 @@ LTOKENIZE_LINE_19:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_ROOM   (ElFin.java:2364)
+; ED_ROOM   (ElFin.java:2446)
 ;
         DEFSUB N_ED_ROOM
         pLIT16  000FEh
@@ -5044,7 +5044,7 @@ LED_ROOM_0:
         pRETN
 
 ;------------------------------------------------------------------
-; DETOK_PRESCAN   (ElFin.java:3906)
+; DETOK_PRESCAN   (ElFin.java:3988)
 ;
         DEFSUB N_DETOK_PRESCAN
         pLIT8   0                ; 0
@@ -5161,7 +5161,7 @@ LDETOK_PRESCAN_3:
         pRETN
 
 ;------------------------------------------------------------------
-; TAIL_LOOK   (ElFin.java:3849)
+; TAIL_LOOK   (ElFin.java:3931)
 ;
         DEFSUB N_TAIL_LOOK
         pLIT8   0                ; 0
@@ -5253,7 +5253,7 @@ LTAIL_LOOK_7:
         pRETN
 
 ;------------------------------------------------------------------
-; PUT_SPACES   (ElFin.java:3732)
+; PUT_SPACES   (ElFin.java:3814)
 ;
         DEFSUB N_PUT_SPACES
         pLIT8   0                ; 0
@@ -5270,7 +5270,7 @@ LPUT_SPACES_1:
         pRETN
 
 ;------------------------------------------------------------------
-; SYM_OUT   (ElFin.java:3748)
+; SYM_OUT   (ElFin.java:3830)
 ;
         DEFSUB N_SYM_OUT
         pCALL   N_SYM_CHARS
@@ -5279,7 +5279,7 @@ LPUT_SPACES_1:
         pRETN
 
 ;------------------------------------------------------------------
-; LIT_BYTES   (ElFin.java:3742)
+; LIT_BYTES   (ElFin.java:3824)
 ;
         DEFSUB N_LIT_BYTES
         pPUSH   N_PC
@@ -5290,7 +5290,7 @@ LPUT_SPACES_1:
         pRETN
 
 ;------------------------------------------------------------------
-; RENDER_ITEM   (ElFin.java:3756)
+; RENDER_ITEM   (ElFin.java:3838)
 ;
         DEFSUB N_RENDER_ITEM
         pPUSH   N_PC
@@ -5529,7 +5529,7 @@ LRENDER_ITEM_17:
         pRETN
 
 ;------------------------------------------------------------------
-; DETOK_CANON   (ElFin.java:3880)
+; DETOK_CANON   (ElFin.java:3962)
 ;
         DEFSUB N_DETOK_CANON
         pLIT8   0                ; 0
@@ -5596,7 +5596,7 @@ LDETOK_CANON_2:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_START   (ElFin.java:2373)
+; ED_START   (ElFin.java:2455)
 ;
         DEFSUB N_ED_START
         pBREQ8  N_EDIRTY,0,LED_START_0
@@ -5667,7 +5667,7 @@ LED_START_4:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_DISCARD   (ElFin.java:2430)
+; ED_DISCARD   (ElFin.java:2512)
 ;
         DEFSUB N_ED_DISCARD
 LED_DISCARD_0:
@@ -5698,7 +5698,7 @@ LED_DISCARD_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_COMMIT   (ElFin.java:2414)
+; ED_COMMIT   (ElFin.java:2496)
 ;
         DEFSUB N_ED_COMMIT
         pBRNE8  N_EDIRTY,0,LED_COMMIT_0
@@ -5731,7 +5731,7 @@ LED_COMMIT_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_SPLIT   (ElFin.java:2479)
+; ED_SPLIT   (ElFin.java:2561)
 ;
         DEFSUB N_ED_SPLIT
         pCALL   N_ED_EDIT
@@ -5834,7 +5834,7 @@ LED_SPLIT_6:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_HIDE   (ElFin.java:2647)
+; TERM_HIDE   (ElFin.java:2729)
 ;
         DEFSUB N_TERM_HIDE
         pCALL   N_TERM_ESC
@@ -5849,7 +5849,7 @@ LED_SPLIT_6:
         pRETN
 
 ;------------------------------------------------------------------
-; TERM_SHOW   (ElFin.java:2655)
+; TERM_SHOW   (ElFin.java:2737)
 ;
         DEFSUB N_TERM_SHOW
         pCALL   N_TERM_ESC
@@ -5864,7 +5864,7 @@ LED_SPLIT_6:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_PAINT_EDIT   (ElFin.java:2677)
+; ED_PAINT_EDIT   (ElFin.java:2759)
 ;
         DEFSUB N_ED_PAINT_EDIT
         pPUSH   N_GAP_HI
@@ -5877,7 +5877,7 @@ LED_SPLIT_6:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_HLON   (ElFin.java:3043)
+; ED_HLON   (ElFin.java:3125)
 ;
         DEFSUB N_ED_HLON
         pLIT16  N_EHL
@@ -5954,7 +5954,7 @@ LED_HLON_3:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_HLOFF   (ElFin.java:3065)
+; ED_HLOFF   (ElFin.java:3147)
 ;
         DEFSUB N_ED_HLOFF
         pLIT16  N_EHL
@@ -5973,7 +5973,7 @@ LED_HLOFF_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_REFRESH   (ElFin.java:2683)
+; ED_REFRESH   (ElFin.java:2765)
 ;
         DEFSUB N_ED_REFRESH
         pCALLX  N_TERM_HIDE
@@ -6005,7 +6005,7 @@ LED_REFRESH_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_FIRST   (ElFin.java:2759)
+; ED_FIRST   (ElFin.java:2841)
 ;
         DEFSUB N_ED_FIRST
         pPUSH   N_CODE_LO
@@ -6014,7 +6014,7 @@ LED_REFRESH_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_VISIBLE   (ElFin.java:2780)
+; ED_VISIBLE   (ElFin.java:2862)
 ;
         DEFSUB N_ED_VISIBLE
         pPUSH   N_ESCROLL
@@ -6037,7 +6037,7 @@ LED_VISIBLE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_LEFT   (ElFin.java:2790)
+; ED_LEFT   (ElFin.java:2872)
 ;
         DEFSUB N_ED_LEFT
         pBREQ8  N_ECCOL,0,LED_LEFT_0
@@ -6046,7 +6046,7 @@ LED_LEFT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_RIGHT   (ElFin.java:2795)
+; ED_RIGHT   (ElFin.java:2877)
 ;
         DEFSUB N_ED_RIGHT
         pPUSH   N_ECCOL
@@ -6060,7 +6060,7 @@ LED_RIGHT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_HOME   (ElFin.java:2800)
+; ED_HOME   (ElFin.java:2882)
 ;
         DEFSUB N_ED_HOME
         pLIT8   0                ; 0
@@ -6068,7 +6068,7 @@ LED_RIGHT_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_END   (ElFin.java:2804)
+; ED_END   (ElFin.java:2886)
 ;
         DEFSUB N_ED_END
         pBREQ8  N_EDIRTY,0,LED_END_0
@@ -6087,7 +6087,7 @@ LED_END_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_DOWN   (ElFin.java:2835)
+; ED_DOWN   (ElFin.java:2917)
 ;
         DEFSUB N_ED_DOWN
         pPUSH   N_ECROW
@@ -6195,7 +6195,7 @@ LED_DOWN_6:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_INSERT   (ElFin.java:2879)
+; ED_INSERT   (ElFin.java:2961)
 ;
         DEFSUB N_ED_INSERT
         pCALL   N_ED_EDIT
@@ -6286,7 +6286,7 @@ LED_INSERT_5:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_JOIN_PREV   (ElFin.java:2954)
+; ED_JOIN_PREV   (ElFin.java:3036)
 ;
         DEFSUB N_ED_JOIN_PREV
         pLIT16  N_ETOP
@@ -6315,7 +6315,7 @@ LED_JOIN_PREV_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_BACKSPACE   (ElFin.java:2918)
+; ED_BACKSPACE   (ElFin.java:3000)
 ;
         DEFSUB N_ED_BACKSPACE
         pBRNE8  N_ECCOL,0,LED_BACKSPACE_0
@@ -6342,7 +6342,7 @@ LED_BACKSPACE_2:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_DELETE   (ElFin.java:2935)
+; ED_DELETE   (ElFin.java:3017)
 ;
         DEFSUB N_ED_DELETE
         pCALL   N_ED_EDIT
@@ -6368,7 +6368,7 @@ LED_DELETE_2:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_PAINT_ROW   (ElFin.java:3078)
+; ED_PAINT_ROW   (ElFin.java:3160)
 ;
         DEFSUB N_ED_PAINT_ROW
         pPUSH   N_ECROW
@@ -6388,7 +6388,7 @@ LED_DELETE_2:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_GETKEY   (ElFin.java:3097)
+; ED_GETKEY   (ElFin.java:3179)
 ;
         DEFSUB N_ED_GETKEY
         pSYSCALL INBYTE
@@ -6448,7 +6448,7 @@ LED_GETKEY_1:
         pRETN
 
 ;------------------------------------------------------------------
-; NUMBER_DEFS   (ElFin.java:4736)
+; NUMBER_DEFS   (ElFin.java:4821)
 ;
         DEFSUB N_NUMBER_DEFS
         pLIT16  05FFFh
@@ -6538,7 +6538,7 @@ LNUMBER_DEFS_1:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_DEF   (ElFin.java:4368)
+; CLOSE_DEF   (ElFin.java:4450)
 ;
         DEFSUB N_CLOSE_DEF
         pLIT8   0                ; 0
@@ -6588,7 +6588,7 @@ LCLOSE_DEF_1:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_RETURN   (ElFin.java:4354)
+; CLOSE_RETURN   (ElFin.java:4436)
 ;
         DEFSUB N_CLOSE_RETURN
         pPUSH   N_LINEADDR
@@ -6614,7 +6614,7 @@ LCLOSE_RETURN_0:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_JUMP   (ElFin.java:4292)
+; CLOSE_JUMP   (ElFin.java:4374)
 ;
         DEFSUB N_CLOSE_JUMP
         pPUSH   N_LINEADDR
@@ -6649,7 +6649,7 @@ LCLOSE_JUMP_0:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_BLOCKS   (ElFin.java:4308)
+; CLOSE_BLOCKS   (ElFin.java:4390)
 ;
         DEFSUB N_CLOSE_BLOCKS
         pLIT8   0                ; 0
@@ -6731,7 +6731,7 @@ LCLOSE_BLOCKS_1:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_DEF   (ElFin.java:4387)
+; COMPILE_DEF   (ElFin.java:4469)
 ;
         DEFSUB N_COMPILE_DEF
         pPUSH   N_LINEADDR
@@ -7006,7 +7006,7 @@ LCOMPILE_DEF_16:
         pRETN
 
 ;------------------------------------------------------------------
-; LINK_CALL   (ElFin.java:4761)
+; LINK_CALL   (ElFin.java:4846)
 ;
         DEFSUB N_LINK_CALL
         pPUSH   N_PC
@@ -7072,7 +7072,7 @@ LLINK_CALL_3:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_REF   (ElFin.java:4140)
+; COMPILE_REF   (ElFin.java:4222)
 ;
         DEFSUB N_COMPILE_REF
         pCALL   N_SYM_REF_AT
@@ -7200,7 +7200,7 @@ LCOMPILE_REF_10:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_REST   (ElFin.java:4201)
+; COMPILE_REST   (ElFin.java:4283)
 ;
         DEFSUB N_COMPILE_REST
         pLIT16  N_AFTERPULL
@@ -7313,7 +7313,7 @@ LCOMPILE_REST_1:
         pRETN
 
 ;------------------------------------------------------------------
-; LIT_AT   (ElFin.java:4524)
+; LIT_AT   (ElFin.java:4606)
 ;
         DEFSUB N_LIT_AT
         pPUSH   N_PC
@@ -7367,7 +7367,7 @@ LLIT_AT_3:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_DIM   (ElFin.java:4478)
+; COMPILE_DIM   (ElFin.java:4560)
 ;
         DEFSUB N_COMPILE_DIM
         pPUSH   N_LINEADDR
@@ -7482,7 +7482,7 @@ LCOMPILE_DIM_3:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_LINE   (ElFin.java:4545)
+; COMPILE_LINE   (ElFin.java:4627)
 ;
         DEFSUB N_COMPILE_LINE
         pPUSH   N_LINEADDR
@@ -7579,10 +7579,15 @@ LCOMPILE_LINE_9:
         pRETN
 LCOMPILE_LINE_10:
         pCALLX  N_COMPILE_REST
+        pBRNE8  N_ERR,0,LCOMPILE_LINE_11
+        pPUSH   N_LINEADDR
+        pSYSCALL NX_FUSE
+        pPOP    N_T1
+LCOMPILE_LINE_11:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_ALL   (ElFin.java:4610)
+; COMPILE_ALL   (ElFin.java:4695)
 ;
         DEFSUB N_COMPILE_ALL
         pLIT16  N_GLOBMAP
@@ -7755,14 +7760,14 @@ LCOMPILE_ALL_11:
         pRETN
 
 ;------------------------------------------------------------------
-; EXECUTE   (ElFin.java:5027)
+; EXECUTE   (ElFin.java:5126)
 ;
         DEFSUB N_EXECUTE
         pSYSCALL NX_EXECUTE
         pRETN
 
 ;------------------------------------------------------------------
-; REMOVE_AT   (ElFin.java:4341)
+; REMOVE_AT   (ElFin.java:4423)
 ;
         DEFSUB N_REMOVE_AT
         pPUSH   N_PC
@@ -7789,7 +7794,7 @@ LCOMPILE_ALL_11:
         pRETN
 
 ;------------------------------------------------------------------
-; RESTORE_ALL   (ElFin.java:4786)
+; RESTORE_ALL   (ElFin.java:4871)
 ;
         DEFSUB N_RESTORE_ALL
         pLIT16  0FFFFh
@@ -7884,10 +7889,34 @@ LRESTORE_ALL_8:
         pPUSH   N_PC
         pPEEK
         pPOP    N_TOKEN
-        pBREQ8  N_TOKEN,99,LRESTORE_ALL_12
-        pBREQ8  N_TOKEN,100,LRESTORE_ALL_12
-        pBRNE8  N_TOKEN,101,LRESTORE_ALL_11
+        pBRNE8  N_TOKEN,91,LRESTORE_ALL_10
+        pPUSH   N_PC
+        pLIT8   71                ; 71
+        pPOKE
+        pGOTO   LRESTORE_ALL_8
+LRESTORE_ALL_10:
+        pBRNE8  N_TOKEN,92,LRESTORE_ALL_11
+        pPUSH   N_PC
+        pPUSH   N_PC
+        pLIT8   4                ; 4
+        pADD
+        pPEEK
+        pPOKE
+        pGOTO   LRESTORE_ALL_8
+LRESTORE_ALL_11:
+        pBRNE8  N_TOKEN,108,LRESTORE_ALL_12
+        pPUSH   N_PC
+        pPUSH   N_PC
+        pLIT8   5                ; 5
+        pADD
+        pPEEK
+        pPOKE
+        pGOTO   LRESTORE_ALL_8
 LRESTORE_ALL_12:
+        pBREQ8  N_TOKEN,99,LRESTORE_ALL_15
+        pBREQ8  N_TOKEN,100,LRESTORE_ALL_15
+        pBRNE8  N_TOKEN,101,LRESTORE_ALL_14
+LRESTORE_ALL_15:
         pPUSH   N_PC
         pLIT8   1                ; 1
         pADD
@@ -7902,32 +7931,32 @@ LRESTORE_ALL_12:
         pLIT8   3                ; 3
         pADD
         pPOP    N_PC
-        pGOTO   LRESTORE_ALL_10
-LRESTORE_ALL_11:
-        pBREQ8  N_TOKEN,47,LRESTORE_ALL_15
+        pGOTO   LRESTORE_ALL_13
+LRESTORE_ALL_14:
+        pBREQ8  N_TOKEN,47,LRESTORE_ALL_18
         pPUSH   N_TOKEN
         pLIT8   37                ; 37
-        pBRULT  LRESTORE_ALL_14
+        pBRULT  LRESTORE_ALL_17
         pPUSH   N_TOKEN
         pLIT8   47                ; 47
-        pBRUGE  LRESTORE_ALL_14
-LRESTORE_ALL_15:
-        pBRNE8  N_TOKEN,47,LRESTORE_ALL_17
+        pBRUGE  LRESTORE_ALL_17
+LRESTORE_ALL_18:
+        pBRNE8  N_TOKEN,47,LRESTORE_ALL_20
         pPUSH   N_PC
         pLIT8   2                ; 2
         pADD
         pPOP    N_T3
-        pGOTO   LRESTORE_ALL_16
-LRESTORE_ALL_17:
+        pGOTO   LRESTORE_ALL_19
+LRESTORE_ALL_20:
         pPUSH   N_PC
         pLIT8   1                ; 1
         pADD
         pPOP    N_T3
-LRESTORE_ALL_16:
+LRESTORE_ALL_19:
         pPUSH   N_T3
         pPEEK
         pLIT16  00080h
-        pBRUGE  LRESTORE_ALL_18
+        pBRUGE  LRESTORE_ALL_21
         pPUSH   N_T3
         pLIT16  00080h
         pPUSH   N_SUBIDX
@@ -7941,31 +7970,31 @@ LRESTORE_ALL_16:
         pPEEK
         pADD
         pPOKE
-LRESTORE_ALL_18:
+LRESTORE_ALL_21:
         pCALL   N_SKIP_ITEM
-        pGOTO   LRESTORE_ALL_13
-LRESTORE_ALL_14:
+        pGOTO   LRESTORE_ALL_16
+LRESTORE_ALL_17:
         pPUSH   N_TOKEN
         pLIT16  00080h
-        pBRULT  LRESTORE_ALL_20
+        pBRULT  LRESTORE_ALL_23
         pPUSH   N_PC
         pLIT8   1                ; 1
         pADD
         pPEEK
         pLIT8   63                ; 63
         pCMPNE
-        pJUMP   LRESTORE_ALL_22
+        pJUMP   LRESTORE_ALL_25
         pINC    N_PC
-        pGOTO   LRESTORE_ALL_21
-LRESTORE_ALL_22:
+        pGOTO   LRESTORE_ALL_24
+LRESTORE_ALL_25:
         pPUSH   N_TOKEN
         pLIT16  000C0h
-        pBRUGE  LRESTORE_ALL_24
-        pBRNE8  N_SUBREC,0,LRESTORE_ALL_25
+        pBRUGE  LRESTORE_ALL_27
+        pBRNE8  N_SUBREC,0,LRESTORE_ALL_28
         pLIT8   18                ; 18
         pPOP    N_ERR
         pRETN
-LRESTORE_ALL_25:
+LRESTORE_ALL_28:
         pPUSH   N_PC
         pLIT16  00080h
         pPUSH   N_SUBREC
@@ -7979,8 +8008,8 @@ LRESTORE_ALL_25:
         pADD
         pPOKE
         pINC    N_PC
-        pGOTO   LRESTORE_ALL_23
-LRESTORE_ALL_24:
+        pGOTO   LRESTORE_ALL_26
+LRESTORE_ALL_27:
         pPUSH   N_PC
         pLIT16  00080h
         pLIT16  N_GLOBMAP
@@ -7993,14 +8022,14 @@ LRESTORE_ALL_24:
         pADD
         pPOKE
         pINC    N_PC
+LRESTORE_ALL_26:
+LRESTORE_ALL_24:
+        pGOTO   LRESTORE_ALL_22
 LRESTORE_ALL_23:
-LRESTORE_ALL_21:
-        pGOTO   LRESTORE_ALL_19
-LRESTORE_ALL_20:
         pCALL   N_SKIP_ITEM
-LRESTORE_ALL_19:
+LRESTORE_ALL_22:
+LRESTORE_ALL_16:
 LRESTORE_ALL_13:
-LRESTORE_ALL_10:
         pGOTO   LRESTORE_ALL_8
 LRESTORE_ALL_9:
         pPUSH   N_LINEADDR
@@ -8011,7 +8040,7 @@ LRESTORE_ALL_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_RUN   (ElFin.java:3135)
+; ED_RUN   (ElFin.java:3217)
 ;
         DEFSUB N_ED_RUN
         pCALL   N_ED_LEAVE
@@ -8035,7 +8064,7 @@ LED_RUN_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_PAINT_PREV   (ElFin.java:3335)
+; ED_PAINT_PREV   (ElFin.java:3417)
 ;
         DEFSUB N_ED_PAINT_PREV
         pPUSH   N_ESCROLL
@@ -8064,7 +8093,7 @@ LED_PAINT_PREV_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_LINEADR   (ElFin.java:3350)
+; ED_LINEADR   (ElFin.java:3432)
 ;
         DEFSUB N_ED_LINEADR
         pPUSH   N_CODE_LO
@@ -8085,7 +8114,7 @@ LED_LINEADR_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_DUPLICATE   (ElFin.java:3411)
+; ED_DUPLICATE   (ElFin.java:3493)
 ;
         DEFSUB N_ED_DUPLICATE
         pLIT16  N_EBB
@@ -8172,7 +8201,7 @@ LED_DUPLICATE_4:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_MOVE   (ElFin.java:3390)
+; ED_MOVE   (ElFin.java:3472)
 ;
         DEFSUB N_ED_MOVE
         pLIT16  N_EBT
@@ -8238,7 +8267,7 @@ LED_MOVE_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_BLOCKDO   (ElFin.java:3365)
+; ED_BLOCKDO   (ElFin.java:3447)
 ;
         DEFSUB N_ED_BLOCKDO
         pCALL   N_ED_LEAVE
@@ -8285,7 +8314,7 @@ LED_BLOCKDO_1:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_BLOCKKEY   (ElFin.java:3297)
+; ED_BLOCKKEY   (ElFin.java:3379)
 ;
         DEFSUB N_ED_BLOCKKEY
         pPUSH   N_EKEY
@@ -8421,7 +8450,7 @@ LED_BLOCKKEY_8:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_MARK   (ElFin.java:3279)
+; ED_MARK   (ElFin.java:3361)
 ;
         DEFSUB N_ED_MARK
         pCALL   N_ED_LEAVE
@@ -8444,7 +8473,7 @@ LED_MARK_0:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_CLEAR   (ElFin.java:3441)
+; ED_CLEAR   (ElFin.java:3523)
 ;
         DEFSUB N_ED_CLEAR
         pLIT8   0                ; 0
@@ -8499,7 +8528,7 @@ LED_CLEAR_2:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_SAVE   (ElFin.java:3473)
+; ED_SAVE   (ElFin.java:3555)
 ;
         DEFSUB N_ED_SAVE
         pCALL   N_ED_LEAVE
@@ -8540,7 +8569,7 @@ LED_SAVE_4:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_LOADLINE   (ElFin.java:3520)
+; ED_LOADLINE   (ElFin.java:3602)
 ;
         DEFSUB N_ED_LOADLINE
         pINC    N_LINE_NO
@@ -8655,7 +8684,7 @@ LED_LOADLINE_10:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_LOAD   (ElFin.java:3499)
+; ED_LOAD   (ElFin.java:3581)
 ;
         DEFSUB N_ED_LOAD
         pCALL   N_ED_LEAVE
@@ -8693,7 +8722,7 @@ LED_LOAD_3:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_HANDLE   (ElFin.java:3235)
+; ED_HANDLE   (ElFin.java:3317)
 ;
         DEFSUB N_ED_HANDLE
         pBRNE8  N_EKEY,23,LED_HANDLE_0
@@ -8740,7 +8769,7 @@ LED_HANDLE_6:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_TICK   (ElFin.java:3221)
+; ED_TICK   (ElFin.java:3303)
 ;
         DEFSUB N_ED_TICK
         pCALLX  N_ED_GETKEY
@@ -8765,7 +8794,7 @@ LED_TICK_1:
         pRETN
 
 ;------------------------------------------------------------------
-; RESET   (ElFin.java:479)
+; RESET   (ElFin.java:500)
 ;
         DEFSUB N_RESET
         pCALLX  N_STORE_BOUNDS
@@ -8812,7 +8841,7 @@ LRESET_3:
         pRETN
 
 ;------------------------------------------------------------------
-; ED_MAIN   (ElFin.java:3572)
+; ED_MAIN   (ElFin.java:3654)
 ;
         DEFSUB N_ED_MAIN
         pCALL   N_TERM_CLEAR
@@ -8852,7 +8881,7 @@ LED_MAIN_3:
         pRETN
 
 ;------------------------------------------------------------------
-; DETOK_LINE   (ElFin.java:3945)
+; DETOK_LINE   (ElFin.java:4027)
 ;
         DEFSUB N_DETOK_LINE
         pLIT8   0                ; 0
