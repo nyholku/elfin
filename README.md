@@ -11,7 +11,7 @@ In a few years that computer and other 8 bit CPU based computers were all but go
 
 ![Telmac](telmac.jpg)
 
-*For an other nostalgic project see my article on [PICOSMAC](https://www.nutsvolts.com/magazine/article/picosmac-back-to-the-past) in Nuts & Volts which has its own github repo here 
+*For an other nostalgic project see my article on [PICOSMAC](https://www.nutsvolts.com/magazine/article/picosmac-back-to-the-past) in Nuts & Volts which has its own github repo 
 [here](https://github.com/nyholku/picosmac).*
 
 ### Wishful thinking now and back then
