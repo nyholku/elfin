@@ -434,3 +434,577 @@ KEY_HAVE
         STR   RA
         SEP   R3
 KEY_END
+
+; ===========================================================================
+; The double-buffered display, for src/elfin/saucers.txt.
+;
+; Two screens, at F900 and FA00.  The 1861 shows one while the program draws
+; the other, and FLIP() trades them - but only between frames, and only when
+; the program says it has finished drawing, so a frame is never seen half
+; drawn and the program never draws on the page being shown.
+;
+; The program and the interrupt meet in five bytes:
+;
+;   DB_LAST  F8FB   DB_CNT as FLIP last saw it: FLIP's, nobody else's
+;   DB_SHOW  F8FC   the page on show, its high byte
+;   DB_BACK  F8FD   the page being drawn
+;   DB_FLIP  F8FE   FLIP sets it to ask for a flip, the interrupt clears it
+;                   once it has flipped
+;   DB_CNT   F8FF   frames shown, counted by the interrupt, modulo 256
+;
+; The interrupt routine is the VIP's, cycle for cycle, as ISR above, with one
+; difference: R0 is not loaded in the prologue.  It is left pointing at the
+; next frame's page by the end of the previous frame, when nothing is counting
+; cycles, and the prologue spends the eight cycles the loading took on four
+; SEX R2s instead.  So the prologue's timing is the VIP's, and everything this
+; routine adds - the frame count and the flip - happens after the display
+; window, in the time the CPU would have had anyway.  R0 is the only register
+; there is for it to work with: it is free between frames, because the 1861
+; uses it only for the 128 lines of picture.
+;
+; None of it may touch DF, as above, which is why the frame count is
+; incremented through R0 rather than added to.
+; ---------------------------------------------------------------------------
+DB_LAST   EQU  0F8FBh
+DB_SHOW   EQU  0F8FCh
+DB_BACK   EQU  0F8FDh
+DB_FLIP   EQU  0F8FEh
+DB_CNT    EQU  0F8FFh
+DB_PAGEA  EQU  0F9h
+DB_PAGEB  EQU  0FAh
+
+        ORG   0F600h
+; VSTART2() - clear both screens, show one, and start the display with the
+; interrupt routine below.  Interrupts are off while R0 and R1 are set: a
+; program run a second time arrives here with the display already on, and an
+; interrupt between PHI R1 and PLO R1 would go nowhere.
+VSTART2
+        LDI   026h              ; (X=R2, P=R6), this routine's own
+        DEC   R2
+        STR   R2
+        DIS                     ; interrupts off, and on with the next line
+        LDI   hi(DB_LAST)
+        PHI   RA
+        LDI   lo(DB_LAST)
+        PLO   RA
+        LDI   0
+        STR   RA                ; DB_LAST
+        INC   RA
+        LDI   DB_PAGEA
+        STR   RA                ; DB_SHOW
+        INC   RA
+        LDI   DB_PAGEB
+        STR   RA                ; DB_BACK
+        INC   RA
+        LDI   0
+        STR   RA                ; DB_FLIP
+        INC   RA
+        STR   RA                ; DB_CNT
+        LDI   DB_PAGEB          ; both pages, from the top down
+        PHI   RD
+        LDI   0FFh
+        PLO   RD
+        SEX   RD
+VS2_CLR
+        LDI   0
+        STXD
+        GHI   RD
+        XRI   DB_PAGEA-1
+        BNZ   VS2_CLR
+        SEX   R2
+        LDI   DB_PAGEA
+        PHI   R0
+        LDI   0
+        PLO   R0                ; what the first frame shows
+        LDI   hi(ISR2)
+        PHI   R1
+        LDI   lo(ISR2)
+        PLO   R1
+        LDI   026h
+        DEC   R2
+        STR   R2
+        RET                     ; interrupts on
+        INP   1                 ; and the display
+        SEX   R8
+        LDI   hi(NAT_RES)
+        PHI   RA
+        LDI   lo(NAT_RES)
+        PLO   RA
+        LDI   0
+        STR   RA
+        INC   RA
+        STR   RA
+        SEP   R3
+
+ISR2
+        BR    ISR2BODY          ; once, on the first interrupt only
+ISR2X
+        LDA   R2                ; D as the interrupted program left it
+        RET
+ISR2BODY
+        DEC   R2
+        SAV
+        DEC   R2
+        STR   R2
+        NOP
+        SEX   R2
+        SEX   R2                ; where ISR loads R0: R0 is already the page
+        SEX   R2                ; to show, set at the end of the frame before
+        SEX   R2
+        SEX   R2
+        SEX   R2
+        SEX   R2
+ISR2_ROW
+        GLO   R0
+        SEX   R2
+        SEX   R2
+        DEC   R0
+        PLO   R0
+        SEX   R2
+        DEC   R0
+        PLO   R0
+        SEX   R2
+        DEC   R0
+        PLO   R0
+        BN1   ISR2_ROW
+                                ; The picture is done; R0 is ours until the
+        LDI   hi(DB_CNT)        ; next frame.  Count the frame: INC, because
+        PHI   R0                ; an add would change DF.
+        LDI   lo(DB_CNT)
+        PLO   R0
+        LDA   R0
+        PLO   R0
+        INC   R0
+        GLO   R0
+        DEC   R2
+        STR   R2
+        LDI   hi(DB_CNT)
+        PHI   R0
+        LDI   lo(DB_CNT)
+        PLO   R0
+        LDA   R2
+        STR   R0
+        DEC   R0                ; DB_FLIP: has the program finished a page?
+        LDA   R0
+        DEC   R0                ; LDN R0 would be IDL
+        BZ    ISR2_SET
+        LDI   0
+        STR   R0                ; yes: say it is done, and trade the pages
+        DEC   R0
+        LDA   R0                ; DB_BACK, the page just drawn
+        DEC   R0                ; LDN R0 would be IDL
+        DEC   R2
+        STR   R2
+        DEC   R0
+        LDA   R0                ; DB_SHOW
+        DEC   R0                ; LDN R0 would be IDL
+        INC   R0
+        STR   R0                ; is the page to draw on now
+        DEC   R0
+        LDA   R2
+        STR   R0                ; and the page just drawn is the one to show
+ISR2_SET
+        LDI   hi(DB_SHOW)
+        PHI   R0
+        LDI   lo(DB_SHOW)
+        PLO   R0
+        LDA   R0
+        PHI   R0
+        LDI   0
+        PLO   R0                ; where the next frame's DMA starts
+        BR    ISR2X
+VSTART2_END
+
+; ---------------------------------------------------------------------------
+; FLIP() - show the page just drawn, and come back with the other one blank.
+;
+; It asks the interrupt for a flip and waits for it, so it returns after the
+; end of a frame's picture, which is what ties a program that calls it once a
+; turn to the display: a turn that is drawn in time is a frame.  The value is
+; how many frames went by since the last FLIP, 1 when the program kept up.
+;
+; Then it clears the new back page.  That page was on show until the flip, so
+; it holds what was drawn two turns ago; a program redraws everything every
+; turn, which is what makes drawing simple.  STXD stores and steps in one
+; instruction, sixteen to a turn of the loop: 320 instructions for the page.
+; ---------------------------------------------------------------------------
+        ORG   0F6C0h
+FLIP
+        LDI   hi(DB_FLIP)
+        PHI   RA
+        LDI   lo(DB_FLIP)
+        PLO   RA
+        LDI   1
+        STR   RA
+FLIP_W
+        LDN   RA                ; until the interrupt has flipped
+        BNZ   FLIP_W
+        INC   RA
+        LDN   RA                ; DB_CNT
+        PLO   RC
+        LDI   lo(DB_LAST)
+        PLO   RA
+        SEX   RA
+        GLO   RC
+        SM                      ; frames since the last FLIP
+        PLO   RE
+        GLO   RC
+        STR   RA                ; and this is the last now
+        INC   RA
+        INC   RA
+        LDN   RA                ; DB_BACK, the page to clear
+        PHI   RD
+        LDI   0FFh
+        PLO   RD
+        SEX   RD
+FLIP_CLR
+        LDI   0
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        STXD
+        GLO   RD
+        XRI   0FFh
+        BNZ   FLIP_CLR
+        SEX   R8
+        LDI   hi(NAT_RES)
+        PHI   RA
+        LDI   lo(NAT_RES)
+        PLO   RA
+        GLO   RE
+        STR   RA
+        INC   RA
+        LDI   0
+        STR   RA
+        SEP   R3
+FLIP_END
+
+; ---------------------------------------------------------------------------
+; DRAW(L[], M, OX, OY) - draw a display list on the back page, and say which
+; of its sprites hit something.
+;
+; A display list is a DIM array of up to sixteen sprites, six words each:
+;
+;   X, Y        where, added to OX and OY
+;   4 words     the bitmap, eight bytes of eight pixels: row 0 is the low
+;               byte of the first word, the leftmost pixel its high bit
+;
+; Sprite I is drawn if bit I of M is set, so a sprite is taken off the screen
+; by clearing its bit and put back by setting it, and the list itself never
+; has to change.  OX and OY move the whole list: a fleet's sprites stay at
+; 0, 8, 16... and the fleet moves by its origin.
+;
+; Drawing is by exclusive-or, as CHIP-8's DXYN.  The value is a mask in the
+; same bits as M: bit I is set if sprite I turned off a pixel that was
+; already lit - it hit something drawn before it.  Draw the things that are
+; hit first and the things that hit second, and the mask says what hit.
+;
+; Both edges wrap.  A row of 0 is not drawn at all, so a sprite smaller than
+; eight rows costs little more than its own rows.
+;
+; Six registers are not enough for two nested loops and a sixteen bit mask,
+; so the outer loop's state is in DW_ below, above the screens' flags.
+;
+; Registers, drawing a sprite: RA the sprite, R9.0 rows left, R9.1 whether it
+; hit, RC.0 the first screen column, RC.1 the shift, RD the screen byte, RE
+; the shifted row, RF.0 the row on screen, RF.1 the shift count.
+; ---------------------------------------------------------------------------
+DW_MASK   EQU  0F8E0h           ; the bits not yet looked at, shifted down
+DW_BIT    EQU  0F8E2h           ; this sprite's bit
+DW_HIT    EQU  0F8E4h           ; the answer, built up
+DW_OX     EQU  0F8E6h
+DW_OY     EQU  0F8E7h
+DW_CNT    EQU  0F8E8h           ; sprites left in the list
+
+; The loop is longer than the room a page leaves after the setting up, and a
+; short branch reaches only its own page, so the setting up is put at the end
+; of the page before: it falls through into DR_NEXT at FC00, and everything a
+; branch reaches is on that one page.  The guard after DR_NEXT says so if an
+; edit moves it.
+        ORG   0FC00h-043h
+DRAW
+        LDI   hi(SP_AT)
+        PHI   RA
+        LDI   lo(SP_AT)
+        PLO   RA
+        LDA   RA
+        PLO   RD
+        LDN   RA
+        PHI   RD                ; RD = SP, on OY, the last argument
+        LDI   hi(DW_OY)
+        PHI   RC
+        LDI   lo(DW_OY)
+        PLO   RC
+        LDA   RD
+        STR   RC                ; OY
+        INC   RD
+        DEC   RC
+        LDA   RD
+        STR   RC                ; OX
+        INC   RD
+        LDI   lo(DW_MASK)
+        PLO   RC
+        LDA   RD
+        STR   RC
+        INC   RC
+        LDA   RD
+        STR   RC                ; M
+        INC   RC
+        LDI   1
+        STR   RC                ; DW_BIT = 1
+        INC   RC
+        LDI   0
+        STR   RC
+        INC   RC
+        STR   RC                ; DW_HIT = 0
+        INC   RC
+        STR   RC
+        LDA   RD
+        PLO   RA
+        LDN   RD
+        PHI   RA                ; RA = L, its header
+        LDA   RA                ; its size in bytes: sixteen sprites are 192,
+        PLO   RE                ; so the low byte is all of it
+        LDA   RA                ; and RA is on the first sprite
+        LDI   0
+        PLO   RF
+DR_COUNT                        ; twelve bytes a sprite: how many are there?
+        GLO   RE
+        SMI   12
+        BNF   DR_COUNTED
+        PLO   RE
+        INC   RF
+        BR    DR_COUNT
+DR_COUNTED
+        LDI   lo(DW_CNT)
+        PLO   RC
+        GLO   RF
+        STR   RC
+
+DR_NEXT
+        IF    DR_NEXT<>0FC00h
+          FATAL "DRAW: the setting up must end exactly at FC00 - change its ORG"
+        ENDIF
+        LDI   hi(DW_CNT)
+        PHI   RD
+        LDI   lo(DW_CNT)
+        PLO   RD
+        LDN   RD
+        BZ    DR_DONE           ; past the end of the list
+        SMI   1
+        STR   RD
+        LDI   lo(DW_MASK+1)
+        PLO   RD
+        LDN   RD
+        SHR
+        STR   RD
+        DEC   RD
+        LDN   RD
+        SHRC
+        STR   RD                ; DF = this sprite's bit of M
+        BDF   DR_SPRITE
+        GLO   RA                ; not drawn: on to the next
+        ADI   12
+        PLO   RA
+        GHI   RA
+        ADCI  0
+        PHI   RA
+        BR    DR_BITUP
+
+DR_SPRITE
+        LDI   0
+        PHI   R9                ; nothing hit yet
+        LDI   lo(DW_OX)
+        PLO   RD
+        SEX   RD                ; ADD takes M(RD): OX, then OY
+        LDA   RA                ; X
+        ADD
+        INC   RA                ; over X's high byte
+        ANI   03Fh
+        PLO   RC
+        ANI   007h
+        PHI   RC                ; the shift
+        GLO   RC
+        SHR
+        SHR
+        SHR
+        PLO   RC                ; the first column
+        INC   RD
+        LDA   RA                ; Y
+        ADD
+        INC   RA
+        ANI   01Fh
+        PLO   RF
+        SEX   R2
+        LDI   8
+        PLO   R9
+        LDI   hi(DB_BACK)
+        PHI   RD
+        LDI   lo(DB_BACK)
+        PLO   RD
+        LDN   RD
+        PHI   RD                ; the page being drawn
+DR_ROW
+        GLO   R9
+        BZ    DR_DRAWN
+        LDA   RA
+        BZ    DR_ROWDONE        ; nothing in this row
+        PHI   RE
+        LDI   0
+        PLO   RE
+        GHI   RC
+        PHI   RF                ; shifted right by X&7, so that what falls off
+        SMI   5                 ; is the part for the next byte along - or for
+        BDF   DR_LEFT           ; 5 to 7, left by 8-(X&7) from the other byte,
+DR_SH                           ; which is the same and never more than 4 turns
+        GHI   RF
+        BZ    DR_SHD
+        GHI   RE
+        SHR
+        PHI   RE
+        GLO   RE
+        SHRC
+        PLO   RE
+        GHI   RF
+        SMI   1
+        PHI   RF
+        BR    DR_SH
+DR_LEFT
+        GHI   RE
+        PLO   RE
+        LDI   0
+        PHI   RE                ; the row in the low byte
+        GHI   RC
+        SDI   8
+        PHI   RF                ; 1 to 3 turns
+DR_LSH
+        GLO   RE
+        SHL
+        PLO   RE
+        GHI   RE
+        SHLC
+        PHI   RE
+        GHI   RF
+        SMI   1
+        PHI   RF
+        BNZ   DR_LSH
+DR_SHD
+        GLO   RF
+        SHL
+        SHL
+        SHL
+        STR   R2
+        GLO   RC
+        ADD
+        PLO   RD                ; the byte the row starts in
+        LDN   RD
+        STR   R2
+        GHI   RE
+        AND                     ; anything lit that this turns off?
+        BZ    DR_L
+        LDI   1
+        PHI   R9
+DR_L
+        GHI   RE
+        XOR
+        STR   RD
+        GLO   RC                ; the byte after it, round the right edge
+        ADI   1
+        ANI   007h
+        STR   R2
+        GLO   RF
+        SHL
+        SHL
+        SHL
+        ADD
+        PLO   RD
+        LDN   RD
+        STR   R2
+        GLO   RE
+        AND
+        BZ    DR_R
+        LDI   1
+        PHI   R9
+DR_R
+        GLO   RE
+        XOR
+        STR   RD
+DR_ROWDONE
+        GLO   RF                ; down a row, round the bottom edge
+        ADI   1
+        ANI   01Fh
+        PLO   RF
+        DEC   R9                ; R9.0 only: it was not 0
+        BR    DR_ROW
+DR_DRAWN
+        GHI   R9
+        BZ    DR_BITUP
+        LDI   hi(DW_BIT)        ; it hit: DW_HIT |= DW_BIT
+        PHI   RD
+        LDI   lo(DW_BIT)
+        PLO   RD
+        LDA   RD
+        STR   R2
+        INC   RD
+        LDN   RD
+        OR
+        STR   RD
+        DEC   RD
+        LDA   RD
+        STR   R2
+        INC   RD
+        LDN   RD
+        OR
+        STR   RD
+DR_BITUP
+        LDI   hi(DW_BIT)        ; the next sprite's bit
+        PHI   RD
+        LDI   lo(DW_BIT)
+        PLO   RD
+        LDN   RD
+        SHL
+        STR   RD
+        INC   RD
+        LDN   RD
+        SHLC
+        STR   RD
+        LDI   lo(DW_MASK)       ; and on while M has bits left
+        PLO   RD
+        LDA   RD
+        BNZ   DR_NEXT
+        LDN   RD
+        BNZ   DR_NEXT
+
+DR_DONE
+        LDI   hi(DW_HIT)
+        PHI   RD
+        LDI   lo(DW_HIT)
+        PLO   RD
+        LDA   RD
+        PLO   RC
+        LDN   RD
+        PHI   RC
+        SEX   R8
+        LDI   hi(NAT_RES)
+        PHI   RA
+        LDI   lo(NAT_RES)
+        PLO   RA
+        GLO   RC
+        STR   RA
+        INC   RA
+        GHI   RC
+        STR   RA
+        SEP   R3
+DRAW_END

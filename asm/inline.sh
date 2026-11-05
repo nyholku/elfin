@@ -4,6 +4,7 @@
 #
 #   ./inline.sh              every routine
 #   ./inline.sh ISR PLOT     just these
+#   BYTES=16 ./inline.sh     at most 16 bytes to an INSTALL line
 #
 # The routines are delimited by NAME and NAME_END labels in inline.s, and the
 # addresses come out of the listing, so adding a routine there needs nothing
@@ -16,7 +17,7 @@ if grep -qE "error:|overlapping|[1-9][0-9]* error" /tmp/elfin_inline.$$; then
 fi
 rm -f /tmp/elfin_inline.$$
 exec python3 - elfin/inline.lst elfin/inline.hex "$@" <<'PY'
-import re, sys
+import os, re, sys
 
 lst, hexf, want = sys.argv[1], sys.argv[2], sys.argv[3:]
 
@@ -48,7 +49,11 @@ for name in sorted(names, key=lambda n: sym.get(n, 0)):
     # ...and the INSTALL line to paste, in pieces when the hex does not fit.
     # A ElFin line is MAX_LINE characters, so a routine over about 115 bytes
     # arrives in more than one, at its own address each time.
+    # BYTES=n in the environment caps it at n bytes a line instead: 16 keeps
+    # a line under 64 characters, short enough to read on any terminal.
     room = (254 - len('INSTALL($FFFF, $"")')) // 2
+    if os.environ.get('BYTES'):
+        room = min(room, int(os.environ['BYTES']))
     at = lo
     while at < hi:
         n = min(room, hi - at)

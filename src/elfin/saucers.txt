@@ -1,0 +1,333 @@
+# Saucers on the CDP1861: a row of them comes down, dropping bombs, and the
+# gun at the bottom shoots back.  4 left, 6 right, 5 fire.  Clear WN waves,
+# each starting lower than the last, to win.
+#
+# Everything on the screen is in a display list: an array of sprites, six
+# words each - X, Y and eight bytes of 8x8 bitmap - which DRAW(L,M,OX,OY)
+# draws, all those whose bit is set in M, offset by OX,OY.  The lists are
+# filled in once, by PUT, and after that the game only moves things and
+# says which are there:
+#
+#   FA, FB  the fleet, in its two poses, the saucers at 0,8,16.. so that the
+#           fleet moves by its origin FX,FY; FM says which are left (bits
+#           0-5), and bit 6 is an explosion where one was, moving with them
+#   OB      the gun (bit 0) and the bullet (bit 1): OM
+#   BB      three bombs: BM.  They all fall a row a turn, so each one's Y is
+#           kept against a clock, BT, that is their origin: one addition a
+#           turn moves them all, the same way FX,FY move the fleet
+#
+# DRAW answers with the bits of the sprites that ran into something already
+# on the screen, so the order of drawing is the collision detection: the
+# bullet before the fleet, and the saucers that come back are the ones it
+# hit; the gun before the bombs, and the bombs that come back hit it (or
+# the bullet - shooting a bomb down is allowed).
+#
+# The screen is double-buffered.  The turn is drawn on the page that is not
+# on show, and FLIP() has the interrupt show it at the end of the next frame
+# and hands back the other page, blank.  So nothing flickers, and a turn
+# takes however many frames it takes - FLIP says how many, and the end
+# prints the total.
+#
+# The machine code is assembled from asm/elfin/inline.s and printed,
+# INSTALL lines and all, by BYTES=16 ./asm/inline.sh KEY VSTART2 FLIP DRAW.
+INSTALL($F3A0, $"3EAF6CFF303BAFACFF0A33AF8C30B1F8")
+INSTALL($F3B0, $"10ACE8F800BAF80BAA8C5A1AF8005AD3")
+INSTALL($F600, $"F826225271F8F8BAF8FBAAF8005A1AF8")
+INSTALL($F610, $"F95A1AF8FA5A1AF8005A1A5AF8FABDF8")
+INSTALL($F620, $"FFADEDF800739DFBF83A23E2F8F9B0F8")
+INSTALL($F630, $"00A0F8F6B1F84BA1F82622527069E8F8")
+INSTALL($F640, $"00BAF80BAAF8005A1A5AD3304F427022")
+INSTALL($F650, $"782252C4E2E2E2E2E2E2E280E2E220A0")
+INSTALL($F660, $"E220A0E220A03C5BF8F8B0F8FFA040A0")
+INSTALL($F670, $"10802252F8F8B0F8FFA0425020402032")
+INSTALL($F680, $"91F80050204020225220402010502042")
+INSTALL($F690, $"50F8F8B0F8FCA040B0F800A0304D")
+INSTALL($F6C0, $"F8F8BAF8FEAAF8015A0A3AC91A0AACF8")
+INSTALL($F6D0, $"FBAAEA8CF7AE8C5A1A1A0ABDF8FFADED")
+INSTALL($F6E0, $"F8007373737373737373737373737373")
+INSTALL($F6F0, $"73738DFBFF3AE0E8F800BAF80BAA8E5A")
+INSTALL($F700, $"1AF8005AD3")
+INSTALL($FBBD, $"F800BAF809AA4AAD0ABDF8F8BCF8E7AC")
+INSTALL($FBCD, $"4D5C1D2C4D5C1DF8E0AC4D5C1C4D5C1C")
+INSTALL($FBDD, $"F8015C1CF8005C1C5C1C5C4DAA0DBA4A")
+INSTALL($FBED, $"AE4AF800AF8EFF0C3BFBAE1F30F2F8E8")
+INSTALL($FBFD, $"AC8F5CF8F8BDF8E8AD0D32DFFF015DF8")
+INSTALL($FC0D, $"E1AD0DF65D2D0D765D33228AFC0CAA9A")
+INSTALL($FC1D, $"7C00BA30C9F800B9F8E6ADED4AF41AFA")
+INSTALL($FC2D, $"3FACFA07BC8CF6F6F6AC1D4AF41AFA1F")
+INSTALL($FC3D, $"AFE2F808A9F8F8BDF8FDAD0DBD8932B3")
+INSTALL($FC4D, $"4A32AABEF800AE9CBFFF0533699F327E")
+INSTALL($FC5D, $"9EF6BE8E76AE9FFF01BF305A9EAEF800")
+INSTALL($FC6D, $"BE9CFD08BF8EFEAE9E7EBE9FFF01BF3A")
+INSTALL($FC7D, $"728FFEFEFE528CF4AD0D529EF2328FF8")
+INSTALL($FC8D, $"01B99EF35D8CFC01FA07528FFEFEFEF4")
+INSTALL($FC9D, $"AD0D528EF232A7F801B98EF35D8FFC01")
+INSTALL($FCAD, $"FA1FAF29304A9932C9F8F8BDF8E2AD4D")
+INSTALL($FCBD, $"521D0DF15D2D4D521D0DF15DF8F8BDF8")
+INSTALL($FCCD, $"E2AD0DFE5D1D0D7E5DF8E0AD4D3A000D")
+INSTALL($FCDD, $"3A00F8F8BDF8E4AD4DAC0DBCE8F800BA")
+INSTALL($FCED, $"F80BAA8C5A1A9C5AD3")
+DIM FA[42]
+DIM FB[42]
+DIM OB[12]
+DIM BB[18]
+DIM PW[8]
+DIM PX[8]
+SETUP()
+VSTART()
+GX=28
+WN=3
+WV=0
+SC=0
+LV=3
+OM=1
+BQ=1
+WAVE()
+OUTS("PRESS A DIGIT TO START")
+OUTS($"0D0A")
+WHILE KEY()>9
+ RN=RN+1
+ DRAW(FA,FM,FX,FY)
+ IF RN&16
+  DRAW(OB,1,0,0)
+ FLIP()
+FR=0
+ST=0
+WHILE (LV>0) & (WV<=WN)
+ K=KEY()
+ IF K==4
+  IF GX>1
+   GX=GX-2
+   OB[0]=GX
+ IF K==6
+  IF GX<56
+   GX=GX+2
+   OB[0]=GX
+ IF K==5
+  IF (OM&2)==0
+   OB[6]=GX+3
+   OB[7]=26
+   OM=OM|2
+ IF OM&2
+  OB[7]=OB[7]-2
+  IF OB[7]<0
+   OM=OM&-3
+ IF XT>0
+  XT=XT-1
+  IF XT==0
+   FM=FM&63
+ MC=MC+1
+ IF MC>MD
+  MC=0
+  MARCH()
+ BT=BT+1
+ BS=BS+6
+ BQ=BQ+BQ
+ IF BQ>4
+  BS=0
+  BQ=1
+ IF BM&BQ
+  IF BB[BS+1]+BT>29
+   BM=BM-BQ
+ IF BM<7
+  RN=RN+RN+RN+RN+RN+1
+  IF (RN&$0700)==0
+   DROP()
+ DRAW(OB,OM,0,0)
+ IF AN
+  H=DRAW(FB,FM,FX,FY)
+ ELSE
+  H=DRAW(FA,FM,FX,FY)
+ IF H&63
+  SHOT(H&63)
+ H=DRAW(BB,BM,0,BT)
+ IF H>0
+  BOMBED(H)
+ FR=FR+FLIP()
+ ST=ST+1
+IF WV>WN
+ YOUWIN()
+ OUTS("YOU WIN, SCORE ")
+ELSE
+ GAMEOVER()
+ OUTS("GAME OVER, SCORE ")
+OUTI(SC)
+OUTS($"0D0A")
+OUTI(ST)
+OUTS(" TURNS IN ")
+OUTI(FR)
+OUTS(" FRAMES")
+OUTS($"0D0A")
+DEF SETUP()
+ GLOBAL PW
+ GLOBAL PX
+ I=0
+ B=1
+ P=0
+ WHILE I<8
+  PW[I]=B
+  PX[I]=P
+  B=B+B
+  P=P+8
+  I=I+1
+ SA=$"78FCB44800000000"
+ SB=$"78FCCC8400000000"
+ I=0
+ WHILE I<6
+  PUT(FA,I,PX[I],0,SA)
+  PUT(FB,I,PX[I],0,SB)
+  I=I+1
+ PUT(FA,6,0,0,$"A442A50000000000")
+ PUT(FB,6,0,0,$"A442A50000000000")
+ PUT(OB,0,28,28,$"1038FEFE00000000")
+ PUT(OB,1,0,0,$"8080000000000000")
+ I=0
+ WHILE I<3
+  PUT(BB,I,0,0,$"8000000000000000")
+  I=I+1
+DEF PUT(L[],I,X,Y,S[])
+ K=6*I
+ L[K]=X
+ L[K+1]=Y
+ L[K+2]=S[0]
+ L[K+3]=S[1]
+ L[K+4]=S[2]
+ L[K+5]=S[3]
+DEF MARCH()
+ GLOBAL FX
+ GLOBAL FY
+ GLOBAL DX
+ GLOBAL AN
+ GLOBAL LV
+ AN=1-AN
+ N=FX+DX
+ IF (N<XL) | (N>XR)
+  DX=-DX
+  FY=FY+2
+  IF FY>23
+   LV=0
+ ELSE
+  FX=N
+# H has one bit, the saucer the bullet hit: it is one pixel wide.
+DEF SHOT(H)
+ GLOBAL FM
+ GLOBAL NA
+ GLOBAL MD
+ GLOBAL SC
+ GLOBAL OM
+ GLOBAL XT
+ GLOBAL FA
+ GLOBAL FB
+ P=0
+ B=1
+ WHILE (H&B)==0
+  P=P+8
+  B=B+B
+ FM=(FM-B)|64
+ NA=NA-1
+ MD=NA/2
+ SC=SC+1
+ FA[36]=P
+ FB[36]=P
+ XT=4
+ OM=OM&-3
+ IF (FM&63)==0
+  WAVE()
+ ELSE
+  EDGES()
+DEF BOMBED(H)
+ GLOBAL BM
+ GLOBAL OM
+ GLOBAL LV
+ I=1
+ B=1
+ WHILE B<8
+  IF H&B
+   BM=BM-B
+   IF BB[I]+BT>=24
+    LV=LV-1
+    OUTS("HIT! LIVES LEFT ")
+    OUTI(LV)
+    OUTS($"0D0A")
+   ELSE
+    OM=OM&-3
+  I=I+6
+  B=B+B
+# Called only when a bomb is free, so the search for one ends.
+DEF DROP()
+ GLOBAL BB
+ GLOBAL BM
+ J=(RN/16)&7
+ IF FM&63&PW[J]
+  I=0
+  B=1
+  WHILE BM&B
+   I=I+6
+   B=B+B
+  BB[I]=FX+PX[J]+2
+  BB[I+1]=FY+4-BT
+  BM=BM|B
+DEF EDGES()
+ GLOBAL XL
+ GLOBAL XR
+ I=0
+ WHILE (FM&PW[I])==0
+  I=I+1
+ XL=-PX[I]
+ I=5
+ WHILE (FM&PW[I])==0
+  I=I-1
+ XR=58-PX[I]
+DEF WAVE()
+ GLOBAL WV
+ GLOBAL FM
+ GLOBAL NA
+ GLOBAL MD
+ GLOBAL FX
+ GLOBAL FY
+ GLOBAL DX
+ GLOBAL XL
+ GLOBAL XR
+ GLOBAL BM
+ GLOBAL OM
+ WV=WV+1
+ FM=63
+ NA=6
+ MD=3
+ FX=8
+ FY=WV+WV-2
+ DX=1
+ XL=0
+ XR=18
+ BM=0
+ OM=OM&1
+DEF GAMEOVER()
+ DIM T[48]
+ PUT(T,0,16,7,$"7C80809C84847C00")
+ PUT(T,1,24,7,$"384482FE82828200")
+ PUT(T,2,32,7,$"82C6AA9282828200")
+ PUT(T,3,40,7,$"FE8080F88080FE00")
+ PUT(T,4,16,18,$"7C82828282827C00")
+ PUT(T,5,24,18,$"8282824444281000")
+ PUT(T,6,32,18,$"FE8080F88080FE00")
+ PUT(T,7,40,18,$"FC8282FC88848200")
+ DRAW(T,255,0,0)
+ FLIP()
+DEF YOUWIN()
+ DIM T[36]
+ PUT(T,0,20,4,$"8244281010101000")
+ PUT(T,1,28,4,$"7C82828282827C00")
+ PUT(T,2,36,4,$"8282828282827C00")
+ PUT(T,3,20,14,$"82828292AAC68200")
+ PUT(T,4,28,14,$"3810101010103800")
+ PUT(T,5,36,14,$"82C2A2928A868200")
+ DRAW(T,63,0,0)
+ DRAW(OB,1,0,0)
+ FLIP()
+DEF INSTALL(AT,CODE[]) $0013
+DEF VSTART() $F600
+DEF FLIP() $F6C0
+DEF DRAW(L[],M,OX,OY) $FBBD
+DEF KEY() $F3A0
+DEF OUTS(S[]) $0017
+DEF OUTI(N) $0019
