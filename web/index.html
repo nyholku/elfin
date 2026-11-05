@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ElFin 1802</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<style>
+:root {
+  --bg: #15171a; --panel: #1e2125; --line: #33373d; --text: #d6d9dd; --dim: #8a9099;
+  --accent: #e8a33d; --term-bg: #062006; --term-fg: #33ff66; --pix-on: #f4f1e8; --pix-off: #0a0a0a;
+  --led-off: #3a1414; --led-on: #ff3b2f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .02em; }
+header h1 span { color: var(--dim); font-weight: 400; font-size: 13px; margin-left: 6px; }
+.ctl { display: flex; align-items: center; gap: 6px; }
+select, button { font: inherit; color: var(--text); background: #2a2e33; border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+button:hover, select:hover { border-color: #555b63; }
+button:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--dim);
+  font: 12px ui-monospace, Menlo, monospace; }
+.led { display: inline-flex; align-items: center; gap: 5px; }
+.led i { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); display: inline-block; }
+.led.on i { background: var(--led-on); box-shadow: 0 0 8px var(--led-on); }
+main { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; align-items: flex-start; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+section h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--dim); display: flex; justify-content: space-between; gap: 10px; }
+section h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+#term .xterm-viewport { overflow-y: hidden !important; }
+#term { background: var(--term-bg); padding: 6px; border-radius: 4px; max-width: 100%; overflow-x: auto; }
+#screen { display: block; width: 448px; max-width: 100%; aspect-ratio: 2 / 1; image-rendering: pixelated;
+  background: var(--pix-off); border-radius: 4px; cursor: pointer;
+  filter: drop-shadow(0 0 3px rgba(244,241,232,.25)); }
+#screen.focused { outline: 2px solid var(--accent); outline-offset: 2px; }
+.side { display: flex; flex-direction: column; gap: 16px; width: 474px; max-width: 100%; }
+.keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+.keypad button { font: 600 16px ui-monospace, Menlo, monospace; padding: 8px 0; touch-action: none; }
+.keypad button.down { background: var(--accent); color: #111; }
+.hint { color: var(--dim); font-size: 12.5px; margin: 8px 0 0; }
+textarea { width: 100%; height: 150px; resize: vertical; background: #101214; color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+#tapeMsg { color: var(--accent); font-size: 12.5px; }
+kbd { font: 11.5px ui-monospace, Menlo, monospace; background: #2a2e33; border: 1px solid var(--line);
+  border-radius: 4px; padding: 0 4px; }
+.help { font-size: 13px; color: var(--dim); }
+.help table { border-collapse: collapse; }
+.help td { padding: 1px 10px 1px 0; vertical-align: top; }
+.help td:first-child { white-space: nowrap; }
+#drop { position: fixed; inset: 0; background: rgba(232,163,61,.15); border: 3px dashed var(--accent);
+  display: none; align-items: center; justify-content: center; font-size: 20px; pointer-events: none; }
+#drop.show { display: flex; }
+@media (max-width: 600px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  .status { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>ElFin <span>on an emulated CDP1802</span></h1>
+  <div class="ctl">
+    <label for="image">Image</label>
+    <select id="image"></select>
+  </div>
+  <div class="ctl">
+    <label for="speed">Clock</label>
+    <select id="speed">
+      <option value="1.76">1.76 MHz (Elf)</option>
+      <option value="4">4 MHz (1802/Mini)</option>
+      <option value="17.6" selected>17.6 MHz (10x)</option>
+      <option value="176">176 MHz (100x)</option>
+      <option value="max">As fast as possible</option>
+    </select>
+  </div>
+  <div class="ctl">
+    <button id="reset" title="Load the image again and restart">Reset</button>
+    <button id="pause">Pause</button>
+    <button id="open" title="Open an Intel hex image, or a program's text for the tape">Open file…</button>
+    <input id="file" type="file" accept=".hex,.ihx,.txt,.bas,.elf" hidden>
+  </div>
+  <div class="status">
+    <span id="mhz">–</span>
+    <span class="led" id="qled"><i></i>Q</span>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Terminal <small>VT100, CDP1854 on ports 6/7</small></h2>
+    <div id="term"></div>
+    <p class="hint" id="imgdesc"></p>
+  </section>
+
+  <div class="side">
+    <section>
+      <h2>CDP1861 <small>64×32, port 1, EF1</small></h2>
+      <canvas id="screen" width="64" height="128" tabindex="0" aria-label="CDP1861 display; focus it to type on the Elf keyboard"></canvas>
+      <div class="keypad" id="keypad"></div>
+      <p class="hint">Keyboard on port 4 / EF3, read by <code>KEY()</code>. Click the screen and type,
+        or hold the buttons. A key counts as down while you hold it.</p>
+    </section>
+
+    <section>
+      <h2>Tape <small>ElFin's Ctrl-S / Ctrl-L, port 2</small></h2>
+      <textarea id="tape" spellcheck="false" placeholder="Ctrl-S in the editor saves the program here. Ctrl-L loads what is here, after the program's last line (Ctrl-E, Y clears it first). Paste a program, or Open file… with a .txt."></textarea>
+      <div class="row">
+        <button id="tapeDownload">Download</button>
+        <button id="tapeClear">Clear</button>
+        <span id="tapeMsg" role="status"></span>
+      </div>
+    </section>
+
+    <section class="help">
+      <h2>Editor keys</h2>
+      <table>
+        <tr><td><kbd>Ctrl-R</kbd></td><td>compile and run; a key afterwards returns to the editor</td></tr>
+        <tr><td><kbd>Ctrl-E</kbd></td><td>clear the program (answer <kbd>Y</kbd>)</td></tr>
+        <tr><td><kbd>Ctrl-S</kbd> <kbd>Ctrl-L</kbd></td><td>save to / load from the tape above</td></tr>
+      </table>
+      <p class="hint">At 1.76 MHz a full editor repaint takes about 20 seconds, as it would on the real
+        machine; pick a faster clock to wait less.</p>
+    </section>
+  </div>
+</main>
+<div id="drop">Drop a .hex image or a program's .txt</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="cdp1802.js"></script>
+<script src="images.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const m = new ElfMachine();
+const FRAME_CYCLES = ElfMachine.FRAME_CYCLES;
+
+// ---- terminal --------------------------------------------------------------
+const term = new Terminal({
+  cols: 80, rows: 24, fontSize: 14, cursorBlink: true, scrollback: 0,
+  fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+  theme: { background: '#062006', foreground: '#33ff66', cursor: '#33ff66', selectionBackground: '#1f6f2f' },
+});
+term.open($('term'));
+let serialOut = '';
+m.onSerial = (b) => { serialOut += String.fromCharCode(b); };
+// The editor's Ctrl-R, Ctrl-S, Ctrl-L and Ctrl-E are the browser's reload,
+// save, address bar and search: keep them for the 1802.
+term.attachCustomKeyEventHandler((e) => {
+  if (e.ctrlKey && !e.metaKey && !e.altKey && /^[a-z]$/i.test(e.key)) e.preventDefault();
+  return true;
+});
+term.onData((s) => { for (let i = 0; i < s.length; i++) m.rx.push(s.charCodeAt(i) & 0xFF); });
+
+// ---- images ----------------------------------------------------------------
+let current = { name: '', hex: '' };
+const images = window.ELFIN_IMAGES || [];
+for (const [i, im] of images.entries()) {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = im.name;
+  $('image').appendChild(o);
+}
+function boot(image) {
+  current = image;
+  m.reset();
+  const n = m.loadHex(image.hex);
+  const tape = m.installTape();
+  term.reset();
+  serialOut = '';
+  $('imgdesc').textContent = (image.desc ? image.desc + '. ' : '') +
+    `${n} bytes loaded` + (tape ? '; Ctrl-S/Ctrl-L go to the tape.' : '.') +
+    (window.ELFIN_VERSION && images.includes(image) ? ` ElFin ${window.ELFIN_VERSION}.` : '');
+  term.focus();
+}
+$('image').addEventListener('change', (e) => boot(images[+e.target.value]));
+$('reset').addEventListener('click', () => boot(current));
+
+// ---- speed, pause ----------------------------------------------------------
+let running = true;
+$('pause').addEventListener('click', () => {
+  running = !running;
+  $('pause').textContent = running ? 'Pause' : 'Resume';
+});
+let speed = $('speed').value;
+$('speed').addEventListener('change', (e) => { speed = e.target.value; debt = 0; });
+
+// ---- 1861 display ----------------------------------------------------------
+const canvas = $('screen'), ctx = canvas.getContext('2d');
+const img = ctx.createImageData(64, 128);
+const ON = [0xf4, 0xf1, 0xe8], OFF = [0x0a, 0x0a, 0x0a];
+function draw() {
+  const d = img.data, s = m.screen, show = m.frameHadPicture;
+  for (let i = 0, j = 0; i < s.length; i++, j += 4) {
+    const c = show && s[i] ? ON : OFF;
+    d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// ---- Elf keyboard: port 4, EF3 while a key is held -------------------------
+const held = [];
+function press(code) { held.push(code); m.key = code; }
+function release(code) {
+  const i = held.lastIndexOf(code);
+  if (i >= 0) held.splice(i, 1);
+  m.key = held.length ? held[held.length - 1] : -1;
+}
+canvas.addEventListener('focus', () => canvas.classList.add('focused'));
+canvas.addEventListener('blur', () => { canvas.classList.remove('focused'); held.length = 0; m.key = -1; });
+canvas.addEventListener('click', () => canvas.focus());
+canvas.addEventListener('keydown', (e) => {
+  if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  press(e.key.toUpperCase().charCodeAt(0));
+});
+canvas.addEventListener('keyup', (e) => {
+  if (e.key.length !== 1) return;
+  release(e.key.toUpperCase().charCodeAt(0));
+});
+for (const k of '1234567890') {
+  const b = document.createElement('button');
+  b.textContent = k;
+  b.setAttribute('aria-label', 'Elf key ' + k);
+  const code = k.charCodeAt(0);
+  const down = (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); b.classList.add('down'); press(code); };
+  const up = () => { if (b.classList.contains('down')) { b.classList.remove('down'); release(code); } };
+  b.addEventListener('pointerdown', down);
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('lostpointercapture', up);
+  $('keypad').appendChild(b);
+}
+
+// ---- tape ------------------------------------------------------------------
+const tape = $('tape');
+function tapeMsg(s) { $('tapeMsg').textContent = s; }
+m.onTapeRead = () => {
+  // ElFin ends a line at CR or LF and stops at Ctrl-Z
+  const text = tape.value.replace(/\r\n?/g, '\n');
+  const bytes = [];
+  for (const ch of text) bytes.push(ch === '\n' ? 13 : ch.charCodeAt(0) & 0xFF);
+  if (bytes.length && bytes[bytes.length - 1] !== 13) bytes.push(13);
+  bytes.push(0x1A);
+  m.tapeIn = bytes;
+  tapeMsg(text.trim() ? `Ctrl-L: reading ${text.split('\n').length} lines` : 'Ctrl-L: the tape is empty');
+};
+m.onTapeSaved = (bytes) => {
+  let s = '';
+  for (const b of bytes) { if (b === 0x1A) break; s += b === 13 ? '\n' : String.fromCharCode(b); }
+  tape.value = s;
+  tapeMsg(`Ctrl-S: saved ${bytes.length} bytes`);
+};
+$('tapeClear').addEventListener('click', () => { tape.value = ''; tapeMsg(''); });
+$('tapeDownload').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([tape.value], { type: 'text/plain' }));
+  a.download = (current.name || 'program') + '.txt';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+// ---- files: a hex image boots, anything else goes on the tape --------------
+function openFile(f) {
+  f.text().then((text) => {
+    if (/\.(hex|ihx)$/i.test(f.name) || /^:[0-9A-F]{10}/i.test(text)) {
+      boot({ name: f.name.replace(/\.[^.]*$/, ''), desc: f.name, hex: text });
+      $('image').selectedIndex = -1;
+    } else {
+      tape.value = text;
+      tapeMsg(`${f.name} is on the tape: Ctrl-L in the editor loads it`);
+      term.focus();
+    }
+  });
+}
+$('open').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', (e) => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
+let dragDepth = 0;
+addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; $('drop').classList.add('show'); });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').classList.remove('show'); } });
+addEventListener('dragover', (e) => e.preventDefault());
+addEventListener('drop', (e) => {
+  e.preventDefault(); dragDepth = 0; $('drop').classList.remove('show');
+  if (e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]);
+});
+
+// ---- the loop: emulated 1861 frames against real time ----------------------
+let last = performance.now(), debt = 0;
+let statT = last, statFrames = 0;
+function tick(now) {
+  const dt = Math.min(now - last, 100);
+  last = now;
+  if (running) {
+    const t0 = performance.now(), budget = 14;
+    if (speed === 'max') {
+      do { m.runFrame(); statFrames++; } while (performance.now() - t0 < budget);
+    } else {
+      debt += (dt / 1000) * (parseFloat(speed) * 1e6 / 8) / FRAME_CYCLES;
+      while (debt >= 1 && performance.now() - t0 < budget) { m.runFrame(); statFrames++; debt -= 1; }
+      if (debt > 2) debt = 2;   // the host cannot keep up: run slower, do not catch up later
+    }
+  }
+  if (serialOut) { term.write(serialOut); serialOut = ''; }
+  draw();
+  $('qled').classList.toggle('on', m.cpu.Q === 1);
+  if (now - statT >= 500) {
+    const mhz = statFrames * FRAME_CYCLES * 8 / ((now - statT) / 1000) / 1e6;
+    $('mhz').textContent = running ? `${mhz.toFixed(mhz < 10 ? 2 : 0)} MHz` : 'paused';
+    statT = now; statFrames = 0;
+  }
+  requestAnimationFrame(tick);
+}
+
+if (images.length) boot(images[0]);
+else $('imgdesc').textContent = 'No images.js: run web/build-images.sh, or Open file… a .hex image.';
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
