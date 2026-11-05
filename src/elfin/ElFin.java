@@ -2652,6 +2652,7 @@ public class ElFin {
 	static int ECROW, ECCOL; // where the cursor is on the screen
 	static int ESCROLL; // the line shown on the top row
 	static int ESCRD; // the screen needs repainting
+	static int DOTS; // ED_RUN's progress dots: how many more fit the row, 0 for none
 
 	static int ENUM; // the number TERM_NUM is rendering
 	static int EGR, EGC; // where TERM_GOTO is going
@@ -2816,10 +2817,16 @@ public class ElFin {
 
 	// Printed after a program has run, so the screen is not taken away before
 	// it has been read.  A table because the subset has no strings.
-	static final int[] RUNMSG = { '-', '-', ' ', 'K', 'E', 'Y', ' ', '-', '-', 0 };
+	// ED_MSG prints one; RUNMSG and CMPMSG are where they start.  Escape
+	// sequences and line ends are in them, as a byte of table is smaller
+	// than the p-code that would PUTC it.
+	static final int[] MSGS = { 0x0D, 0x0A, '-', '-', ' ', 'K', 'E', 'Y', ' ', '-', '-', 0,
+			0x1B, '[', '?', '7', 'h', 'C', 'O', 'M', 'P', 'I', 'L', 'I', 'N', 'G', 0x0D, 0x0A, 0,
+			'E', 'l', 'F', 'i', 'n', ' ', '0', '.', '1', ' ', 'M', 'e', 'm', ' ', 0 };
+	static final int RUNMSG = 0;
+	static final int CMPMSG = 12;
+	static final int BOOTMSG = 29; // what the machine says it is when it comes up
 	static final int[] CLRMSG = { 'C', 'L', 'E', 'A', 'R', '?', ' ', 'Y', '/', 'N', 0 };
-	// What the machine says it is when it comes up, before the editor.
-	static final int[] BOOTMSG = { 'E', 'l', 'F', 'i', 'n', ' ', '0', '.', '1', 0 };
 
 	// The block being moved or duplicated.  Kept as line numbers, 1 based, not
 	// addresses: the gap moves lines about, and a number still names the same
@@ -3228,11 +3235,17 @@ public class ElFin {
 			return;
 		GAP_CLOSE();
 		TERM_CLEAR();
-		TERM_ESC(); // a running program's long lines wrap again
-		PUTC(0x3F);
-		PUTC(0x37);
-		PUTC(0x68); // ?7h
+		// A big program takes a while to compile on the machine - chess the
+		// best part of a minute at 1.76 MHz - so say so, and under it a dot
+		// for every line compiled, 64 to a row, and clear the screen again before it
+		// runs.  CMPMSG starts by turning autowrap back on, which the editor
+		// turns off: a running program's lines wrap.
+		T1 = CMPMSG;
+		ED_MSG();
+		DOTS = 64;
 		COMPILE_ALL();
+		DOTS = 0;
+		TERM_CLEAR();
 		if (ERR == 0)
 			EXECUTE();
 		ED_REPORT();
@@ -3264,14 +3277,17 @@ public class ElFin {
 	}
 
 	static void ED_WAITKEY() {
-		PUTC(0x0D);
-		PUTC(0x0A);
-		T1 = 0;
-		while (RUNMSG[T1] != 0) { // NOERR
-			PUTC(RUNMSG[T1]);
+		T1 = RUNMSG;
+		ED_MSG();
+		T1 = GETC();
+	}
+
+	// ED_MSG: the message at T1 in MSGS, up to its 0.
+	static void ED_MSG() {
+		while (MSGS[T1] != 0) { // NOERR
+			PUTC(MSGS[T1]);
 			T1 = T1 + 1;
 		}
-		T1 = GETC();
 	}
 
 	// ED_RETOP: find the top line again by its number.
@@ -3661,15 +3677,16 @@ public class ElFin {
 		ESCRD = 1;
 	}
 
-	// ED_MAIN says what the machine is first, its name and version, and waits
-	// for a key: on the machine this is what comes up at reset.
+	// ED_MAIN says what the machine is first, its name and version and the
+	// bytes free for the program, and waits for a key: on the machine this is
+	// what comes up at reset.  Free is the gap and what is above the program,
+	// the two places GAP_NEED can take room from.
 	static void ED_MAIN() {
 		TERM_CLEAR();
-		T1 = 0;
-		while (BOOTMSG[T1] != 0) { // NOERR
-			PUTC(BOOTMSG[T1]);
-			T1 = T1 + 1;
-		}
+		T1 = BOOTMSG;
+		ED_MSG();
+		ENUM = m16(m16(SYM_CHR - CODE_END) + m16(GAP_HI - GAP_LO));
+		TERM_NUM();
 		ED_WAITKEY();
 		TERM_CLEAR();
 		ERUN = 1;
@@ -4762,6 +4779,15 @@ public class ElFin {
 
 		PC = CODE_LO;
 		while (ult(PC, GAP_LO) && ERR == 0) {
+			if (DOTS != 0) {
+				PUTC(0x2E); // .
+				DOTS = DOTS - 1;
+				if (DOTS == 0) {
+					PUTC(0x0D);
+					PUTC(0x0A);
+					DOTS = 64;
+				}
+			}
 			LINEADDR = PC;
 			LINE_NO = LINE_NO + 1;
 			CINDENT = rd8(PC);

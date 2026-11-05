@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build what a real 1802 loads: ElFin with a program already in it.  It comes
-# up saying "ElFin" and its version and waits for a key; then it is in the
-# editor with the program on the screen.  Ctrl-R runs it; a key after the run
+# up saying "ElFin", its version and the memory free, and waits for a key;
+# then it is in the editor with the program on the screen.  Ctrl-R runs it; a key after the run
 # brings the editor back.
 #
 #   ./make-image.sh FILE [OUT.hex]          the store up to F000, 60K of RAM

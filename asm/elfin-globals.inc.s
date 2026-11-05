@@ -26,7 +26,7 @@
 ; The N_ prefix keeps these out of the editor's name space: the two share
 ; one assembly and both wanted a register called SRC.
 ;
-; 141 registers in 57 slots; the largest phase touches 57, which is the
+; 142 registers in 57 slots; the largest phase touches 57, which is the
 ; floor for any allocation.
 
 ; Cold registers are marked COLD in the source because they are touched
@@ -154,17 +154,18 @@ N_NSP            EQU  43  ; ed_commit+ed_load+ed_split+tokenize
 N_TLFOUND        EQU  43  ; detokenize+ed_join+ed_paint+ed_save+ed_start+ed_tick
 N_PFD            EQU  44  ; ed_commit+ed_load+ed_split+tokenize
 N_TLN            EQU  44  ; detokenize+ed_join+ed_paint+ed_save+ed_start+ed_tick
-N_EGC            EQU  45  ; ed_key+ed_main+ed_paint+ed_tick
-N_PFE            EQU  45  ; ed_commit+ed_load+ed_split+tokenize
-N_EGR            EQU  46  ; ed_key+ed_main+ed_paint+ed_tick
-N_PFS            EQU  46  ; ed_commit+ed_load+ed_split+tokenize
-N_ENUM           EQU  47  ; ed_key+ed_load+ed_run+ed_save
-N_EPTR           EQU  47  ; ed_main+ed_paint+ed_tick
-N_EKEY           EQU  48  ; ed_key+ed_main+ed_tick
+N_ENUM           EQU  45  ; ed_key+ed_load+ed_main+ed_run+ed_save
+N_EGC            EQU  46  ; ed_key+ed_main+ed_paint+ed_tick
+N_PFE            EQU  46  ; ed_commit+ed_load+ed_split+tokenize
+N_EGR            EQU  47  ; ed_key+ed_main+ed_paint+ed_tick
+N_PFS            EQU  47  ; ed_commit+ed_load+ed_split+tokenize
+N_DOTS           EQU  48  ; compile+ed_run+ed_tick
 N_STOPCH         EQU  48  ; ed_commit+ed_load+ed_split+tokenize
-N_EROW           EQU  49  ; ed_main+ed_paint+ed_tick
+N_EKEY           EQU  49  ; ed_key+ed_main+ed_tick
 N_SYMLEN         EQU  49  ; ed_commit+ed_load+ed_split+tokenize
+N_EPTR           EQU  50  ; ed_main+ed_paint+ed_tick
 N_SYMSRC         EQU  50  ; ed_commit+ed_load+ed_split+tokenize
+N_EROW           EQU  51  ; ed_main+ed_paint+ed_tick
 N_T4             EQU  51  ; ed_commit+ed_load+ed_split+tokenize
 N_TAILN          EQU  52  ; ed_commit+ed_load+ed_split+tokenize
 N_TEMIT          EQU  53  ; ed_commit+ed_load+ed_split+tokenize

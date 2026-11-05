@@ -990,7 +990,8 @@ The `I` in `SORT` is its own local and does not disturb the main program's `I`.
 
 ## The editor
 
-The machine comes up saying what it is, `ElFin 0.1`, and waits for a key; then
+The machine comes up saying what it is, `ElFin 0.1`, and how many bytes are free
+for the program, `Mem 35584` with no program in it, and waits for a key; then
 it is in a full-screen editor with the program on the screen.
 Every line is checked and stored as it is typed. A line that can't be stored
 as ElFin is kept as typed, and compiling reports it.

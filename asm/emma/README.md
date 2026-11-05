@@ -30,8 +30,8 @@ printed by then is diffed against the reference and reported as a mismatch.
 What comes up depends on how it is run.  A diffed run - no `KEEP` - comes up
 running the program: `EmmaImage` points the entry jump at the executor, and
 when the program ends the machine parks on `NXSYS_STOP`.  With `KEEP=1` it
-comes up as the machine does instead (`-Delfin.boot=editor`): `ElFin 0.1` and
-a wait for a key, then the editor with the program on the screen.  Ctrl-R
+comes up as the machine does instead (`-Delfin.boot=editor`): `ElFin 0.1 Mem`
+and the bytes free, a wait for a key, then the editor with the program on the screen.  Ctrl-R
 compiles and runs it, a key after the run brings the editor back, and Ctrl-Q,
 which on a host ends the session, only starts the machine again, name and
 version first - on the machine there is nothing to quit to.  `BOOT=run` or
