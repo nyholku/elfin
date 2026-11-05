@@ -133,7 +133,7 @@ Two more snippets that someone might find useful are [src/elfin/sierpinski.txt](
 
 ### Language I/O
 
-ElFin has not I/O in the language itself, always a though call for any language designer. Instead you need to provice your own I/O and embed some machine language stubs to your ElFin program like chess does.
+ElFin has no I/O in the language itself, always a though call for any language designer. Instead you need to provice your own I/O and embed some machine language stubs to your ElFin program like chess does.
 
 
 
