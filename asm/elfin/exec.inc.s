@@ -3033,19 +3033,13 @@ NXDC_REC
           LDN   RF
           ANI   NXF_ISNATIVE
           FBZ   NXDC_ElFin
-          ST16  NX_T0,R9        ; what the native path reads it from
 
 ; ---- a native DEF: machine code at an address the program gave -----------
           ST16  SP_CELL,R8      ; the routine reads its arguments off the stack
-          LD16  RC,NX_T0
-          GLO   RC
-          PLO   RD
-          GHI   RC
-          PHI   RD
-          LDA   RD
-          PLO   R6
-          LDN   RD
-          PHI   R6
+          LDA   R9              ; NXSR_ADDR, the record's first word: where
+          PLO   R6              ; the code is.  R9 is the routine's to use
+          LDN   R9              ; from here on, and NXR9 puts its high byte
+          PHI   R6              ; back afterwards
           GHI   R6              ; one of page 0's terminal vectors?
           BNZ   NXDC_MCODE
           GLO   R6
@@ -3174,9 +3168,23 @@ NXDC_NATBACK
           GHI   R8
           ADC
           PHI   R8
-          NXCALLF NX_ISSTMT,NXKNS
-NXKNS
+                                ; NX_ISSTMT, inline: is the call a statement of
+          GLO   R2              ; its own?  Without NX_ISSTMT's own return on
+          ADI   3               ; the stack the loop's is 3 up, not 5
+          PLO   RE
+          GHI   R2
+          ADCI  0
+          PHI   RE
+          LDA   RE
+          XRI   hi(NXSL_NEXT)
+          BNZ   NXKNS
+          LDN   RE
+          XRI   lo(NXSL_NEXT)
+          BNZ   NXKNS
+          LDN   R7
+          SDI   00Fh            ; DF = 1: a line header, comment or tail next
           BDF   NXKNX           ; a statement of its own, as in NXK88
+NXKNS
           LD16  RD,NAT_RES
           PUSHR RD
 NXKNX
