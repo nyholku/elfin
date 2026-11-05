@@ -6448,7 +6448,7 @@ LED_GETKEY_1:
         pRETN
 
 ;------------------------------------------------------------------
-; NUMBER_DEFS   (ElFin.java:4821)
+; NUMBER_DEFS   (ElFin.java:4823)
 ;
         DEFSUB N_NUMBER_DEFS
         pLIT16  05FFFh
@@ -6538,7 +6538,7 @@ LNUMBER_DEFS_1:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_DEF   (ElFin.java:4450)
+; CLOSE_DEF   (ElFin.java:4452)
 ;
         DEFSUB N_CLOSE_DEF
         pLIT8   0                ; 0
@@ -6588,7 +6588,7 @@ LCLOSE_DEF_1:
         pRETN
 
 ;------------------------------------------------------------------
-; CLOSE_RETURN   (ElFin.java:4436)
+; CLOSE_RETURN   (ElFin.java:4438)
 ;
         DEFSUB N_CLOSE_RETURN
         pPUSH   N_LINEADDR
@@ -6695,6 +6695,13 @@ LCLOSE_BLOCKS_4:
         pGOTO   LCLOSE_BLOCKS_5
 LCLOSE_BLOCKS_6:
         pBRNE8  N_T1,2,LCLOSE_BLOCKS_8
+        pPUSH   N_BLKSP
+        pLIT8   1                ; 1
+        pADD
+        pPEEK
+        pPUSH   N_CINDENT
+        pCMPNE
+        pJUMP   LCLOSE_BLOCKS_8
         pPUSH   N_LINEADDR
         pLIT8   1                ; 1
         pADD
@@ -6731,7 +6738,7 @@ LCLOSE_BLOCKS_1:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_DEF   (ElFin.java:4469)
+; COMPILE_DEF   (ElFin.java:4471)
 ;
         DEFSUB N_COMPILE_DEF
         pPUSH   N_LINEADDR
@@ -7006,7 +7013,7 @@ LCOMPILE_DEF_16:
         pRETN
 
 ;------------------------------------------------------------------
-; LINK_CALL   (ElFin.java:4846)
+; LINK_CALL   (ElFin.java:4848)
 ;
         DEFSUB N_LINK_CALL
         pPUSH   N_PC
@@ -7313,7 +7320,7 @@ LCOMPILE_REST_1:
         pRETN
 
 ;------------------------------------------------------------------
-; LIT_AT   (ElFin.java:4606)
+; LIT_AT   (ElFin.java:4608)
 ;
         DEFSUB N_LIT_AT
         pPUSH   N_PC
@@ -7367,7 +7374,7 @@ LLIT_AT_3:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_DIM   (ElFin.java:4560)
+; COMPILE_DIM   (ElFin.java:4562)
 ;
         DEFSUB N_COMPILE_DIM
         pPUSH   N_LINEADDR
@@ -7482,7 +7489,7 @@ LCOMPILE_DIM_3:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_LINE   (ElFin.java:4627)
+; COMPILE_LINE   (ElFin.java:4629)
 ;
         DEFSUB N_COMPILE_LINE
         pPUSH   N_LINEADDR
@@ -7587,7 +7594,7 @@ LCOMPILE_LINE_11:
         pRETN
 
 ;------------------------------------------------------------------
-; COMPILE_ALL   (ElFin.java:4695)
+; COMPILE_ALL   (ElFin.java:4697)
 ;
         DEFSUB N_COMPILE_ALL
         pLIT16  N_GLOBMAP
@@ -7760,14 +7767,14 @@ LCOMPILE_ALL_11:
         pRETN
 
 ;------------------------------------------------------------------
-; EXECUTE   (ElFin.java:5126)
+; EXECUTE   (ElFin.java:5128)
 ;
         DEFSUB N_EXECUTE
         pSYSCALL NX_EXECUTE
         pRETN
 
 ;------------------------------------------------------------------
-; REMOVE_AT   (ElFin.java:4423)
+; REMOVE_AT   (ElFin.java:4425)
 ;
         DEFSUB N_REMOVE_AT
         pPUSH   N_PC
@@ -7794,7 +7801,7 @@ LCOMPILE_ALL_11:
         pRETN
 
 ;------------------------------------------------------------------
-; RESTORE_ALL   (ElFin.java:4871)
+; RESTORE_ALL   (ElFin.java:4873)
 ;
         DEFSUB N_RESTORE_ALL
         pLIT16  0FFFFh

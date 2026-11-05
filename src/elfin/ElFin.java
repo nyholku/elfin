@@ -4405,11 +4405,13 @@ public class ElFin {
 				BLKJMP = m16(rd16(BLKSP + 2) - 2);
 				CLOSE_JUMP();
 				wr16(rd16(BLKSP + 2), LINEADDR);
-			} else if (T1 == BK_IF && rd8(m16(LINEADDR + 1)) == T_ELSE) {
+			} else if (T1 == BK_IF && rd8(BLKSP + 1) == CINDENT && rd8(m16(LINEADDR + 1)) == T_ELSE) {
 				// an IF whose body ran has to step over the ELSE.  Where that
 				// is is not known until the ELSE closes, so the jump goes in
 				// empty and the ELSE block carries its address instead of its
-				// own target field.
+				// own target field.  Only the IF at the ELSE's own indent: an
+				// IF nested deeper, closed by the same line, is not the ELSE's,
+				// and its false branch lands on this jump, at LINEADDR.
 				BLKJMP = 0;
 				CLOSE_JUMP();
 				wr16(rd16(BLKSP + 2), LINEADDR);

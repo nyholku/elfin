@@ -1785,6 +1785,15 @@ public class TestElFin {
 		// ... and the shapes that must keep working
 		execGate("ELSE still works", new String[] { "IF 0", " PRINT 1", "ELSE", " PRINT 2" },
 				new String[] { "2" });
+		// an ELSE that also closes an IF nested deeper: only the IF at the
+		// ELSE's own indent steps over it; the inner one used to get a jump
+		// of its own, never patched, to address 0
+		execGate("ELSE after a nested IF closes", new String[] { //
+				"Y=5", "WHILE Y>-2", " IF Y>0", "  IF Y>2", "   PRINT \"BIG\"", " ELSE", "  PRINT \"NOT\"",
+				" Y=Y-2" }, new String[] { "BIG", "BIG", "NOT" });
+		execGate("ELSE after an IF ELSE IF closes", new String[] { //
+				"Y=5", "IF Y>0", " IF Y>31", "  Y=0", " ELSE", "  IF Y>2", "   Y=7", "ELSE", " Y=9", "PRINT Y" },
+				new String[] { "7" });
 		execGate(".DIM still works on arrays", new String[] { //
 				"DIM A[3]", "M=\"AB\"", "PRINT A.DIM,M.DIM" }, new String[] { "3 1" });
 		execGate("native DEF with no body", new String[] { "PRINT BAR()", "DEF BAR() $1234" },
