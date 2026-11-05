@@ -9,12 +9,14 @@
 # the editor.  "ElFin" with no program is always included.
 set -e
 cd "$(dirname "$0")/.."
+# Asked before web/images.js is rewritten, which would make the tree dirty.
+VERSION=$(git describe --tags --always --dirty)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 if [ $# -eq 0 ]; then
     set -- src/elfin/chess.txt src/elfin/eightqueens.txt src/elfin/gunner.txt \
-           src/elfin/sierpinski.txt src/elfin/sprites.txt
+           src/elfin/saucers.txt src/elfin/sierpinski.txt src/elfin/sprites.txt
 fi
 : > "$TMP/elfin.txt"
 
@@ -29,17 +31,22 @@ fi
             chess)       desc="Chess: you play White, moves like e2e4" ;;
             eightqueens) desc="All 92 solutions of the eight queens" ;;
             gunner)      desc="Gun and saucer on the 1861: 4 left, 6 right, 5 fire" ;;
+            saucers)     desc="Saucers, double-buffered on the 1861: 4 left, 6 right, 5 fire" ;;
             sierpinski)  desc="Sierpinski triangle on the 1861" ;;
             sprites)     desc="CHIP-8 style XOR sprites on the 1861" ;;
             *)           desc=$(grep -m1 '^#' "$f" 2>/dev/null | sed 's/^# *//; s/[\\"`]//g' || true) ;;
         esac
-        printf '  {name: "%s", desc: "%s", hex:\n`' "$name" "$desc"
+        # The clock the page starts it at: an 1861 program at the Elf's own
+        # 1.76 MHz, the speed its display is timed for; a terminal one at
+        # 2.5, the fastest the CDP1802 was rated for at 5 V.
+        if grep -q 'VSTART' "$f"; then mhz=1.76; else mhz=2.5; fi
+        printf '  {name: "%s", desc: "%s", mhz: "%s", hex:\n`' "$name" "$desc" "$mhz"
         # the page clears memory before loading, so records of zeros can go
         grep -v -E '^:[0-9A-F]{8}(00)+[0-9A-F]{2}$' "$TMP/$name.hex"
         printf '`},\n'
         echo "built $name" >&2
     done
     echo "];"
-    echo "window.ELFIN_VERSION = \"$(git describe --tags --always --dirty)\";"
+    echo "window.ELFIN_VERSION = \"$VERSION\";"
 } > web/images.js
 echo "wrote web/images.js" >&2

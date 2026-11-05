@@ -40,7 +40,7 @@ section h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
   filter: drop-shadow(0 0 3px rgba(244,241,232,.25)); }
 #screen.focused { outline: 2px solid var(--accent); outline-offset: 2px; }
 .side { display: flex; flex-direction: column; gap: 16px; width: 474px; max-width: 100%; }
-.keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+.keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
 .keypad button { font: 600 16px ui-monospace, Menlo, monospace; padding: 8px 0; touch-action: none; }
 .keypad button.down { background: var(--accent); color: #111; }
 .hint { color: var(--dim); font-size: 12.5px; margin: 8px 0 0; }
@@ -74,8 +74,9 @@ kbd { font: 11.5px ui-monospace, Menlo, monospace; background: #2a2e33; border: 
     <label for="speed">Clock</label>
     <select id="speed">
       <option value="1.76">1.76 MHz (Elf)</option>
+      <option value="2.5" selected>2.5 MHz (1802 at 5 V)</option>
       <option value="4">4 MHz (1802/Mini)</option>
-      <option value="17.6" selected>17.6 MHz (10x)</option>
+      <option value="17.6">17.6 MHz (10x)</option>
       <option value="176">176 MHz (100x)</option>
       <option value="max">As fast as possible</option>
     </select>
@@ -105,7 +106,7 @@ kbd { font: 11.5px ui-monospace, Menlo, monospace; background: #2a2e33; border: 
       <canvas id="screen" width="64" height="128" tabindex="0" aria-label="CDP1861 display; focus it to type on the Elf keyboard"></canvas>
       <div class="keypad" id="keypad"></div>
       <p class="hint">Keyboard on port 4 / EF3, read by <code>KEY()</code>. Click the screen and type,
-        or hold the buttons. A key counts as down while you hold it.</p>
+        or hold the buttons. KEY() reads only the digits. A key counts as down while you hold it.</p>
     </section>
 
     <section>
@@ -178,7 +179,13 @@ function boot(image) {
     (window.ELFIN_VERSION && images.includes(image) ? ` ElFin ${window.ELFIN_VERSION}.` : '');
   term.focus();
 }
-$('image').addEventListener('change', (e) => boot(images[+e.target.value]));
+// Choosing an image sets the clock it is meant for; Reset keeps whatever the
+// clock has been changed to since.
+function choose(image) {
+  if (image.mhz) { $('speed').value = image.mhz; speed = image.mhz; debt = 0; }
+  boot(image);
+}
+$('image').addEventListener('change', (e) => choose(images[+e.target.value]));
 $('reset').addEventListener('click', () => boot(current));
 
 // ---- speed, pause ----------------------------------------------------------
@@ -224,7 +231,8 @@ canvas.addEventListener('keyup', (e) => {
   if (e.key.length !== 1) return;
   release(e.key.toUpperCase().charCodeAt(0));
 });
-for (const k of '1234567890') {
+// the COSMAC VIP's hex keypad, as it is laid out
+for (const k of '123C456D789EA0BF') {
   const b = document.createElement('button');
   b.textContent = k;
   b.setAttribute('aria-label', 'Elf key ' + k);
@@ -317,7 +325,7 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-if (images.length) boot(images[0]);
+if (images.length) choose(images[0]);
 else $('imgdesc').textContent = 'No images.js: run web/build-images.sh, or Open file… a .hex image.';
 requestAnimationFrame(tick);
 </script>
