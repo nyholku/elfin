@@ -579,7 +579,7 @@ public class TestElFin {
 		// cannot leave its old last line behind.
 		screenGate("paint a short program on a taller screen",
 				new String[] { "A=1", "B=2" }, 4, 40,
-				"<ESC>[?25l"
+				"<ESC>[?25l<ESC>[?7l"
 						+ "<ESC>[1;1HA=1<ESC>[K"
 						+ "<ESC>[2;1HB=2<ESC>[K"
 						+ "<ESC>[3;1H<ESC>[K"
@@ -588,7 +588,7 @@ public class TestElFin {
 
 		screenGate("paint exactly as many lines as rows",
 				new String[] { "PRINT 1", "PRINT 2" }, 2, 40,
-				"<ESC>[?25l"
+				"<ESC>[?25l<ESC>[?7l"
 						+ "<ESC>[1;1HPRINT 1<ESC>[K"
 						+ "<ESC>[2;1HPRINT 2<ESC>[K"
 						+ "<ESC>[1;1H<ESC>[?25h");
@@ -634,7 +634,7 @@ public class TestElFin {
 				ElFin.ED_REFRESH();
 			}
 		});
-		String wantEdit = "<ESC>[?25l<ESC>[1;1HA=9999<ESC>[K<ESC>[2;1HB=2<ESC>[K<ESC>[1;1H<ESC>[?25h";
+		String wantEdit = "<ESC>[?25l<ESC>[?7l<ESC>[1;1HA=9999<ESC>[K<ESC>[2;1HB=2<ESC>[K<ESC>[1;1H<ESC>[?25h";
 		if (got.equals(wantEdit))
 			System.out.println("ok   the line being edited is painted from the gap");
 		else {

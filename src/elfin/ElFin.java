@@ -2732,6 +2732,14 @@ public class ElFin {
 		PUTC(0x32);
 		PUTC(0x35);
 		PUTC(0x6C); // ?25l
+		// and no autowrap: the editor paints a line longer than the screen
+		// whole and counts on the terminal to drop what is past the edge.
+		// One that wraps it - a VT100 with wraparound set, xterm, most PC
+		// terminals - paints its end over the rows below.
+		TERM_ESC();
+		PUTC(0x3F);
+		PUTC(0x37);
+		PUTC(0x6C); // ?7l
 	}
 
 	static void TERM_SHOW() {
@@ -3220,6 +3228,10 @@ public class ElFin {
 			return;
 		GAP_CLOSE();
 		TERM_CLEAR();
+		TERM_ESC(); // a running program's long lines wrap again
+		PUTC(0x3F);
+		PUTC(0x37);
+		PUTC(0x68); // ?7h
 		COMPILE_ALL();
 		if (ERR == 0)
 			EXECUTE();
