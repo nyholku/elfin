@@ -62,15 +62,34 @@ Because ElFin ditches the line numbers an on screen editor is almost mandatory s
 
 The tokenized form of the source code lends itself nicely to a gap buffer editor where all the text being edited is in two blocks: text before the cursor position is at the beginning of the buffer and text after the cursor is packed to end of the buffer leaving a gap where inserting and deleting text can be done without moving large number of characters.
 
-Here is what it looks like when run on Emma 02 1802 emulator and its built in VT100 terminal emulator.
-
-![](elfin-gunner-sourcecode.png)
-
-One sub goal I had in mind that ElFin should make it possible to write CHIP8 like games with CDP1861 graphics. And indeed, it is possible by embedding the video interupt routine in the ElFin code:
-
-![](elfin-running-gunner.png)
+Here is what it would have looked like back in the day running elfin and the [chess](src/elfin/chess.txt) demo program using a VT100 terminal.
 
 
+
+This is an animated gif captured from emulator with old school CRT imperfections thrown in.
+
+
+![](elfin-chess-startup-crt.gif)
+
+One sub goal I had in mind that ElFin should make it possible to write CHIP8 like games with CDP1861 graphics. 
+
+And indeed, it is possible by embedding the video interrupt routine and machine language sprite drawing routine in the ElFin code.
+
+Below is an animated gif captured from 1802 emulator running elfin + [saucers](src/elfin/saucers.txt), a poor man's Space Invaders like game written in elfin.
+
+
+![](elfin-running-saucers-telmac.gif)
+
+
+### Try it out in your browser!
+
+You can try out elfin with the online [emulator](https://nyholku.github.io/elfin/web/) in your browser, it should work even on your phone !!
+
+This is an 1802 emulator with CDP1861 video chip and VT100 terminal attached so it runs the actual elfin system so you can load/save, edit and run real elfin programs.
+
+At realistic or super speeds.
+
+It embeds all the elfin demo code from this repository for you to hit the ground running.
 
 ### Key properties of ElFin
 
