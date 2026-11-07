@@ -54,6 +54,16 @@ kbd { font: 11.5px ui-monospace, Menlo, monospace; background: #2a2e33; border: 
 .help table { border-collapse: collapse; }
 .help td { padding: 1px 10px 1px 0; vertical-align: top; }
 .help td:first-child { white-space: nowrap; }
+.ctrlwrap { position: relative; }
+#ctrlMenu { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; width: min(340px, calc(100vw - 32px));
+  background: var(--panel); border: 1px solid #555b63; border-radius: 8px; padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5); display: grid; gap: 2px; }
+#ctrlMenu[hidden] { display: none; }
+#ctrlMenu button { display: flex; gap: 10px; align-items: baseline; text-align: left; width: 100%;
+  background: transparent; border: 1px solid transparent; padding: 7px 8px; }
+#ctrlMenu button:hover, #ctrlMenu button:focus-visible { background: #2a2e33; border-color: var(--line); }
+#ctrlMenu kbd { flex: none; width: 52px; text-align: center; }
+#ctrlMenu span { color: var(--dim); font-size: 13px; }
 #drop { position: fixed; inset: 0; background: rgba(232,163,61,.15); border: 3px dashed var(--accent);
   display: none; align-items: center; justify-content: center; font-size: 20px; pointer-events: none; }
 #drop.show { display: flex; }
@@ -97,6 +107,11 @@ kbd { font: 11.5px ui-monospace, Menlo, monospace; background: #2a2e33; border: 
   <section>
     <h2>Terminal <small>VT100, CDP1854 on ports 6/7</small></h2>
     <div id="term"></div>
+    <div class="row ctrlwrap">
+      <button id="ctrlBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="ctrlMenu"
+        title="Send the editor's Ctrl keys, for phones and tablets">Ctrl keys ▾</button>
+      <div id="ctrlMenu" role="menu" hidden></div>
+    </div>
     <p class="hint" id="imgdesc"></p>
   </section>
 
@@ -158,6 +173,38 @@ term.attachCustomKeyEventHandler((e) => {
   return true;
 });
 term.onData((s) => { for (let i = 0; i < s.length; i++) m.rx.push(s.charCodeAt(i) & 0xFF); });
+
+// ---- the editor's Ctrl keys, for a phone or tablet keyboard that has none ----
+const ctrlKeys = [
+  ['R', 'compile and run'],
+  ['S', 'save to the tape'],
+  ['L', 'load from the tape'],
+  ['E', 'clear the program (asks Y/N)'],
+  ['B', 'mark a block of lines; again to move it'],
+  ['D', 'duplicate the marked block'],
+  ['W', 'refresh the screen'],
+  ['Q', 'start again from the welcome screen'],
+];
+const ctrlBtn = $('ctrlBtn'), ctrlMenu = $('ctrlMenu');
+function ctrlOpen(open) {
+  ctrlMenu.hidden = !open;
+  ctrlBtn.setAttribute('aria-expanded', open);
+}
+for (const [k, what] of ctrlKeys) {
+  const b = document.createElement('button');
+  b.setAttribute('role', 'menuitem');
+  b.innerHTML = `<kbd>Ctrl-${k}</kbd><span>${what}</span>`;
+  // keep the focus where it was, so a desktop terminal stays focused and a phone keyboard does not pop up
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  b.addEventListener('click', () => { m.rx.push(k.charCodeAt(0) - 64); ctrlOpen(false); });
+  ctrlMenu.appendChild(b);
+}
+ctrlBtn.addEventListener('mousedown', (e) => e.preventDefault());
+ctrlBtn.addEventListener('click', () => ctrlOpen(ctrlMenu.hidden));
+document.addEventListener('pointerdown', (e) => {
+  if (!ctrlMenu.hidden && !e.target.closest('.ctrlwrap')) ctrlOpen(false);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !ctrlMenu.hidden) ctrlOpen(false); });
 
 // ---- images ----------------------------------------------------------------
 let current = { name: '', hex: '' };
